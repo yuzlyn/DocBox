@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Markdown Preview</title>
+<script>
+  (function () {
+    var match = /[#&]bg=([^&]+)/.exec(location.href);
+    if (match) {
+      var color = decodeURIComponent(match[1]);
+      document.write('<style>html,body{background:' + color + ' !important}</style>');
+    }
+  })();
+</script>
+<script>
+  window.onerror = function (message, source, line, column) {
+    var text = message + ' @ ' + source + ':' + line + ':' + column;
+    if (window.PreviewBridge && window.PreviewBridge.onError) window.PreviewBridge.onError(text);
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function (event) {
+    if (window.PreviewBridge && window.PreviewBridge.onError) {
+      window.PreviewBridge.onError('REJECTION: ' + (event.reason && event.reason.message ? event.reason.message : event.reason));
+    }
+  });
+</script>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      processEscapes: true
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+    },
+    svg: { fontCache: 'global' },
+    startup: { typeset: false }
+  };
+</script>
+<style>
+  /* Fallback 使用系统语义色（非写死 hex）；运行时由 M3E color roles 注入覆盖 */
+  :root {
+    --md-surface: Canvas;
+    --md-on-surface: CanvasText;
+    --md-on-surface-variant: GrayText;
+    --md-primary: LinkText;
+    --md-primary-container: Highlight;
+    --md-on-primary-container: HighlightText;
+    --md-secondary-container: ButtonFace;
+    --md-on-secondary-container: ButtonText;
+    --md-tertiary: LinkText;
+    --md-tertiary-container: ButtonFace;
+    --md-on-tertiary-container: ButtonText;
+    --md-outline: GrayText;
+    --md-outline-variant: GrayText;
+    --md-surface-container-low: Canvas;
+    --md-surface-container-high: ButtonFace;
+    --md-error: CanvasText;
+    --md-font-size: 16px;
+    --md-max-width: 720px;
+    --md-line-height: 1.65;
+    --sp-25: 2px;   --sp-50: 4px;   --sp-75: 6px;   --sp-100: 8px;
+    --sp-125: 10px; --sp-150: 12px; --sp-175: 14px; --sp-200: 16px;
+    --sp-250: 20px; --sp-300: 24px; --sp-400: 32px; --sp-450: 36px;
+    --sp-500: 40px; --sp-600: 48px; --sp-700: 56px; --sp-800: 64px;
+    --sp-900: 72px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    font-size: clamp(14px, var(--md-font-size), 24px);
+    line-height: var(--md-line-height);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .content {
+    max-width: var(--md-max-width);
+    margin: 0 auto;
+    padding: var(--sp-300) var(--sp-200) var(--sp-900);
+    min-height: 100vh;
+  }
+  @media (max-width: 400px) {
+    .content { padding-left: var(--sp-150); padding-right: var(--sp-150); }
+  }
+  @media (min-width: 600px) {
+    .content { padding-left: var(--sp-400); padding-right: var(--sp-400); }
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--md-on-surface);
+    line-height: 1.3;
+    margin: var(--sp-300) 0 var(--sp-100);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    scroll-margin-top: var(--sp-200);
+  }
+  h1 { font-size: 1.9em; margin-top: 0; padding-bottom: var(--sp-100); border-bottom: 1px solid var(--md-outline-variant); }
+  h2 { font-size: 1.45em; padding-bottom: var(--sp-50); border-bottom: 1px solid var(--md-outline-variant); }
+  h3 { font-size: 1.22em; }
+  h4 { font-size: 1.08em; }
+  h5, h6 { font-size: 1em; }
+  p { margin: 0 0 var(--sp-200); }
+  a { color: var(--md-primary); text-decoration: underline; text-underline-offset: 2px; }
+  strong { font-weight: 700; }
+  del { color: var(--md-on-surface-variant); }
+  mark { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); padding: 0 var(--sp-50); border-radius: var(--sp-25); }
+  sub, sup { font-size: 0.75em; }
+  .heading-anchor { margin-inline-start: var(--sp-50); text-decoration: none; color: var(--md-primary); }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--md-surface-container-high);
+    color: var(--md-on-surface);
+    padding: 0 var(--sp-50);
+    border-radius: var(--sp-50);
+  }
+  pre {
+    position: relative;
+    background: var(--md-surface-container-low);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--sp-200);
+    padding: var(--sp-200);
+    margin: 0 0 var(--sp-200);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  pre code { background: none; padding: 0; border-radius: 0; white-space: pre; line-height: 1.6; }
+  .copy-btn {
+    position: sticky;
+    float: right;
+    top: 0;
+    right: 0;
+    background: var(--md-secondary-container);
+    color: var(--md-on-secondary-container);
+    border: none;
+    border-radius: var(--sp-100);
+    padding: 0 var(--sp-100);
+    font-size: 0.72em;
+    line-height: 2;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link { color: var(--md-primary); }
+  .hljs-string, .hljs-attr, .hljs-template-variable, .hljs-addition { color: var(--md-tertiary); }
+  .hljs-comment, .hljs-quote, .hljs-deletion { color: var(--md-on-surface-variant); }
+  .hljs-number, .hljs-symbol, .hljs-bullet, .hljs-meta { color: var(--md-on-primary-container); }
+  .hljs-title, .hljs-name, .hljs-type, .hljs-built_in, .hljs-attribute { color: var(--md-on-secondary-container); }
+
+  blockquote {
+    border-inline-start: 3px solid var(--md-primary);
+    background: var(--md-surface-container-low);
+    color: var(--md-on-surface-variant);
+    padding: var(--sp-100) var(--sp-200);
+    margin: 0 0 var(--sp-200);
+    border-radius: 0 var(--sp-100) var(--sp-100) 0;
+  }
+  blockquote p:last-child { margin-bottom: 0; }
+  ul, ol { padding-inline-start: var(--sp-300); margin: 0 0 var(--sp-200); }
+  li { margin-bottom: var(--sp-50); }
+  li > ul, li > ol { margin-top: var(--sp-50); margin-bottom: 0; }
+  .task-list-item { list-style: none; margin-inline-start: calc(-1 * var(--sp-200)); }
+  .task-list-item input { accent-color: var(--md-primary); margin-inline-end: var(--sp-100); }
+  dl { margin: 0 0 var(--sp-200); }
+  dt { font-weight: 600; }
+  dd { margin-inline-start: var(--sp-300); color: var(--md-on-surface-variant); }
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 0 var(--sp-200);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--sp-100);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92em; }
+  th, td { border-bottom: 1px solid var(--md-outline-variant); padding: var(--sp-100) var(--sp-150); text-align: start; }
+  th { background: var(--md-secondary-container); color: var(--md-on-secondary-container); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  hr { border: none; border-top: 1px solid var(--md-outline-variant); margin: var(--sp-300) 0; }
+  img, video, svg { max-width: 100%; height: auto; border-radius: var(--sp-100); }
+  img.img-broken { min-height: 1.5em; border: 1px solid var(--md-outline-variant); }
+
+  /* ---- 內聯 HTML：只補幾個預設樣式不好看的標籤，其餘沿用瀏覽器預設 ---- */
+  kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85em;
+    background: var(--md-surface-container-low);
+    border: 1px solid var(--md-outline-variant);
+    border-bottom-width: 2px;
+    border-radius: var(--sp-50);
+    padding: 0 var(--sp-50);
+  }
+  u, ins { text-decoration: underline; text-underline-offset: 2px; }
+  s { color: var(--md-on-surface-variant); }
+  small { font-size: 0.85em; }
+  abbr[title] { text-decoration: underline dotted; cursor: help; }
+  details {
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--sp-150);
+    padding: var(--sp-100) var(--sp-150);
+    margin: 0 0 var(--sp-200);
+  }
+  summary { cursor: pointer; font-weight: 600; }
+  details[open] > summary { margin-bottom: var(--sp-100); }
+  details > *:last-child { margin-bottom: 0; }
+  /* <br> 是使用者明確要求的換行，別再被行距吞掉 */
+  br { line-height: 1; }
+
+  .math-block {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    background: var(--md-surface-container-low);
+    border-radius: var(--sp-200);
+    padding: var(--sp-150) var(--sp-100);
+    margin: 0 0 var(--sp-200);
+    text-align: center;
+  }
+  .math-inline { white-space: nowrap; }
+  .math-raw { color: var(--md-on-surface-variant); }
+  mjx-container { color: var(--md-on-surface); max-width: 100%; }
+  mjx-container[display="true"] { margin: var(--sp-100) 0 !important; overflow-x: auto; overflow-y: hidden; }
+
+  .toc {
+    background: var(--md-surface-container-low);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--sp-200);
+    padding: var(--sp-150) var(--sp-200);
+    margin-bottom: var(--sp-300);
+  }
+  .toc-title { color: var(--md-on-surface-variant); font-size: 0.8em; letter-spacing: 0.08em; margin-bottom: var(--sp-50); }
+  .toc ul { list-style: none; padding-inline-start: 0; margin: 0; }
+  .toc li { margin: var(--sp-25) 0; }
+  .toc a { text-decoration: none; color: var(--md-on-surface); }
+  .toc-l2 { padding-inline-start: var(--sp-200); }
+  .toc-l3 { padding-inline-start: var(--sp-400); }
+
+  .footnotes { font-size: 0.88em; color: var(--md-on-surface-variant); border-top: 1px solid var(--md-outline-variant); margin-top: var(--sp-400); padding-top: var(--sp-150); }
+  .footnotes ol { padding-inline-start: var(--sp-250); }
+  .footnote-ref a { text-decoration: none; font-size: 0.78em; }
+  .footnote-backref { text-decoration: none; }
+
+  /* ---- 直排（vertical-rl）：文字由上而下、行由右往左，容器改為水平捲動 ---- */
+  /* 用 fixed 撐滿視窗，不要用 vh：部分 WebView 會把 100vh 算成 0，整個版面會塌掉。 */
+  body.vertical { overflow: hidden; }
+  body.vertical #content.content {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    max-width: none;
+    min-height: 0;
+    margin: 0;
+    padding: var(--sp-300) var(--sp-200);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* 直排時標題的底線要立起來、而且緊貼這一行的漢字（行距收窄，去掉 padding） */
+  body.vertical #content h1,
+  body.vertical #content h2 {
+    height: max-content;
+    max-height: 100%;
+    line-height: 1.12;
+    padding-bottom: 0;
+    padding-inline-start: 0;
+    padding-block-end: 0;
+    margin-block-start: var(--sp-400);
+    margin-block-end: var(--sp-200);
+    border-bottom: none;
+    border-inline-start: none;
+    border-block-end: 1px solid var(--md-outline-variant);
+  }
+  /* 引用的色條與圓角：直排時色條要立著放（行起＝右側），四角都要圓，內外都要留白 */
+  body.vertical #content blockquote {
+    border-inline-start: none;
+    border-block-start: 3px solid var(--md-primary);
+    border-radius: var(--sp-150);
+    padding: var(--sp-300) var(--sp-200);
+    margin-block: var(--sp-200);
+  }
+  /* 螢光筆的左右 padding 在直排會把底色撐到隔壁欄，改成順著文字方向留白 */
+  body.vertical #content mark { padding: var(--sp-50) 0; }
+  /* 程式碼、公式、表格無法直排：各自獨立成一個橫排區塊，佔滿整頁高 */
+  /* 程式碼、公式、表格無法直排：各自變成一張獨立卡片。
+     寬高都貼齊內容，最寬不超過頁面的八成，避免每張卡片都吃掉整頁、旁邊留一大片空白。 */
+  body.vertical #content pre,
+  body.vertical #content .math-block,
+  body.vertical #content .table-wrap {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    width: max-content;
+    max-width: 84vw;
+    height: auto;
+    max-height: 100%;
+    margin: var(--sp-150);
+    padding: var(--sp-200);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--sp-200);
+    background: var(--md-surface-container-low);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* 程式碼太長時換行，不要橫向捲動 */
+  body.vertical #content pre code {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  /* 公式塊像「一個字」一樣沿著行往下排：三個公式就是由上到下排成一豎，不會各自成欄 */
+  body.vertical #content .math-block {
+    display: inline-block;
+    width: max-content;
+    max-width: 84vw;
+    height: max-content;
+    max-height: 100%;
+    text-align: center;
+    vertical-align: middle;
+  }
+  /* 表格也能直排：表格本身用 vertical-rl，欄由右往左、欄內文字直書 */
+  body.vertical #content .table-wrap {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    width: max-content;
+    max-width: 84vw;
+    height: 100%;
+    max-height: 100%;
+    background: var(--md-surface);
+  }
+  body.vertical #content .table-wrap > table {
+    writing-mode: inherit;
+    width: auto;
+    height: 100%;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--sp-100);
+    overflow: hidden;
+  }
+  /* 直排的分割線要立起來：貫穿一頁高的細直線 */
+  body.vertical #content hr {
+    width: 1px;
+    height: 100%;
+    margin: 0 var(--sp-300);
+    border: none;
+    background: var(--md-outline-variant);
+  }
+  body.vertical #content img,
+  body.vertical #content video { max-width: none; max-height: 100%; }
+</style>
+</head>
+<body>
+<main id="content" class="content"></main>
+<script src="preview.js"></script>
+<script>
+  /**
+   * 切換直排。直排的起點在最右邊，也就是捲軸的 0，所以只要把捲動位置歸零，
+   * 打開預覽時看到的就是第一行（不需要另外計算，反而容易把畫面推到空白處）。
+   */
+  window.setVertical = function (enabled) {
+    var content = document.getElementById('content');
+    if (!content) return;
+    document.body.classList.toggle('vertical', !!enabled);
+    content.scrollLeft = 0;
+  };
+</script>
+<script>
+  /**
+   * 內聯 HTML 的清理器。
+   *
+   * 預覽引擎開了 html 之後，文件內容可以帶任意標籤。這裡只拿掉「會執行、會外連、
+   * 會改版面骨架」的那幾類，其餘（b / i / u / mark / span style / table / kbd / details…）
+   * 一律保留——與 VS Code 的 Markdown 預覽行為一致。
+   */
+  (function () {
+    var BLOCKED = 'script,iframe,frame,frameset,object,embed,applet,link,meta,base,form';
+    var URL_ATTRS = { href: 1, src: 1, action: 1, formaction: 1, 'xlink:href': 1 };
+    var BAD_URL = /^\s*(javascript|vbscript|data:text\/html)/i;
+    var lastClean = 0;
+
+    function clean() {
+      var root = document.getElementById('content');
+      if (!root) return;
+      lastClean = Date.now();
+
+      var doomed = root.querySelectorAll(BLOCKED);
+      for (var i = 0; i < doomed.length; i++) {
+        if (doomed[i].parentNode) doomed[i].parentNode.removeChild(doomed[i]);
+      }
+
+      var all = root.querySelectorAll('*');
+      for (var j = 0; j < all.length; j++) {
+        var el = all[j];
+        var attrs = el.attributes;
+        if (attrs && attrs.length) {
+          for (var k = attrs.length - 1; k >= 0; k--) {
+            var name = attrs[k].name.toLowerCase();
+            var value = attrs[k].value || '';
+            if (name.lastIndexOf('on', 0) === 0 || name === 'srcdoc') {
+              el.removeAttribute(attrs[k].name);
+            } else if (URL_ATTRS[name] && BAD_URL.test(value)) {
+              el.removeAttribute(attrs[k].name);
+            }
+          }
+        }
+        // 遠端樣式表不載入，免得預覽自己去連網。
+        if (el.tagName === 'STYLE' && /@import/i.test(el.textContent || '')) {
+          el.textContent = (el.textContent || '').replace(/@import[^;]*;/gi, '');
+        }
+      }
+    }
+
+    var render = window.updateMarkdown;
+    if (typeof render === 'function') {
+      window.updateMarkdown = function (text) {
+        var result = render.apply(window, arguments);
+        // 沒有 '<' 就不可能有標籤，省掉整棵樹的掃描。
+        if (typeof text !== 'string' || text.indexOf('<') !== -1) clean();
+        return result;
+      };
+    }
+
+    // MathJax 排版完成後會自己再渲染一次，繞過上面的包裝；用觀察器補一次。
+    // 120ms 的窗口用來吃掉「清理自己造成的變動」，避免無限回圈。
+    new MutationObserver(function () {
+      if (Date.now() - lastClean < 120) return;
+      clean();
+    }).observe(document.body, { childList: true, subtree: true });
+  })();
+</script>
+</body>
+</html>

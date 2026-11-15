@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DocBox 图标背景 · 种子 #2E6B4F → MaterialKolor TonalSpot 派生 primary #2C694D
+     纯色无渐变：自适应图标在圆 / 方圆角 / 圆角方 / 全出血各种遮罩下，裁切结果都一致。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#2C694D"
+        android:pathData="M0,0h108v108h-108z" />
+</vector>

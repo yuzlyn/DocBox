@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 繁體中文（中國香港、中國澳門等 Hant 地區） -->
+    <string name="app_name">文書匣子</string>
+</resources>

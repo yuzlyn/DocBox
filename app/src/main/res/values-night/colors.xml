@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="splash_background">#3a3a20</color>
+    <!-- 夜間開屏：深色 App 的底色，不是純黑（純黑會在 OLED 上顯出邊界）。 -->
+    <color name="splash_background">#101413</color>
 </resources>

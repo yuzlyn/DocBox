@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+  <title>DocBox icon — three books (ink)</title>
+  <desc>Material 3 adaptive icon. 108dp canvas, 72dp visible, 66dp safe zone.</desc>
+  <rect width="108" height="108" fill="#17141A"/>
+  <g><path d="M32.94 57 H76.6 A2.4 2.4 0 0 1 79 59.4 V68.1 A2.4 2.4 0 0 1 76.6 70.5 H32.94 A5.94 5.94 0 0 1 27 64.56 V62.94 A5.94 5.94 0 0 1 32.94 57 Z" fill="#E8DCC5"/></g><g transform="rotate(-3 53 55.1)"><path d="M36.5 42.6 H72.6 A2.4 2.4 0 0 1 75 45 V52.7 A2.4 2.4 0 0 1 72.6 55.1 H36.5 A5.5 5.5 0 0 1 31 49.6 V48.1 A5.5 5.5 0 0 1 36.5 42.6 Z" fill="#E8DCC5"/></g><path d="M65.5 42.6 L71.5 40.4 V63.5 L68.5 59.6 L66.2 64 Z" fill="#C9502C"/>
+</svg>

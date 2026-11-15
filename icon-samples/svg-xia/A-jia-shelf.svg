@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+  <title>DocBox icon — 架 (Shelf)</title>
+  <desc>Material 3 Expressive adaptive icon. 108dp canvas, 72dp visible, 66dp safe zone.</desc>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7A63B8"/><stop offset="1" stop-color="#5B4596"/></linearGradient></defs>
+  <rect width="108" height="108" fill="url(#bg)"/>
+<path d="M75 30 H33 V78 H75" fill="none" stroke="#FFFFFF"
+  stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><g >
+    <rect x="37.5" y="39.5" width="12" height="35" rx="1.5" fill="#D0BCFF"/>
+    <rect x="39.2" y="70.7" width="8.6" height="1.8" rx=".9"
+          fill="#5B4596" opacity=".45"/></g><g transform="rotate(8 66 74.5)">
+    <rect x="60.5" y="46.5" width="11" height="28" rx="1.5" fill="#D0BCFF"/>
+    <rect x="62.2" y="70.7" width="7.6" height="1.8" rx=".9"
+          fill="#5B4596" opacity=".45"/></g><path d="M51.4 36 H56.6 V66 L54 74.6 L51.4 66 Z" fill="#F093AE"/>
+</svg>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DocBox 图标 · 字形「魯大司徒厚氏」× 配色 165° / 彩度 52。由 _gen_launcher_icons.py 生成，勿手改。 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/launcher_bg_w11c" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground_lusitu" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground_lusitu" />
+</adaptive-icon>

@@ -7,6 +7,14 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="splash_background">#ffffaa</color>
-    <color name="ic_launcher_background_color">#ffffaa</color>
+
+    <!--
+      開屏底色。
+
+      Android 12 以後，冷啟動那一片空白是系統畫的「起始視窗」，
+      顏色取自主題、改不到 Compose 那邊；所以夜間一定要有一份深色版本
+      （values-night），否則半夜開 App 會先被一片白閃一下。
+      色調跟預設的莫奈紙色（LOTUS）取同一個調子，不是純白也不是純黑。
+    -->
+    <color name="splash_background">#F7F9F8</color>
 </resources>

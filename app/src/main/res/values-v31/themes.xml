@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+      Android 12+ 的 SplashScreen 是一扇獨立的視窗，底色由
+      windowSplashScreenBackground 決定（沒設的話是 ?android:colorBackground）。
+      圖示不用指定：系統預設就拿 manifest 的 android:icon，
+      而那個圖示本身已經跟著莫奈主色同步（見 ui/theme/LauncherIcon）。
+    -->
+    <style name="Theme.MDEditor" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:colorBackground">@color/splash_background</item>
+    </style>
+</resources>

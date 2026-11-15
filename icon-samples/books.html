@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>三本书 · DocBox 图标</title>
+<style>
+  :root{
+    --bg:#0d0c0f; --surf:#161519; --line:#2c2a33;
+    --tx:#EDE8DE; --tx2:#9A938C; --tx3:#6B655F;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);
+    font:14px/1.65 "Inter","SF Pro Text",-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    padding:46px 40px 72px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1140px;margin:0 auto}
+  .eyebrow{font-size:11px;letter-spacing:2.4px;text-transform:uppercase;color:var(--tx3);margin-bottom:13px}
+  h1{font-size:30px;line-height:1.22;margin:0 0 11px;font-weight:600;letter-spacing:-.4px}
+  h1 small{font-weight:400;color:var(--tx2);font-size:14.5px;letter-spacing:0;margin-left:11px}
+  .lede{color:var(--tx2);max-width:76ch;margin:0 0 26px;font-size:13.5px}
+  .lede b{color:var(--tx);font-weight:600}
+  hr{border:0;height:1px;background:var(--line);margin:34px 0}
+
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .bar .lb{font-size:11.5px;color:var(--tx3);letter-spacing:1px;text-transform:uppercase;margin-right:4px}
+  .pal{display:flex;align-items:center;gap:8px;background:var(--surf);border:1px solid var(--line);
+    border-radius:999px;padding:6px 14px 6px 7px;cursor:pointer;transition:.16s;font:inherit;color:var(--tx2);font-size:12.5px}
+  .pal:hover{border-color:#474350}
+  .pal[aria-pressed="true"]{background:#282530;border-color:#5f5a6c;color:var(--tx)}
+  .pal .dots{display:flex}
+  .pal .d{width:14px;height:14px;border-radius:50%;margin-right:-4px;box-shadow:0 0 0 1.5px var(--surf)}
+  .pal span{margin-left:10px}
+
+  .hero{display:grid;grid-template-columns:290px 1fr;gap:46px;align-items:center;margin-top:34px;
+    background:var(--surf);border:1px solid var(--line);border-radius:24px;padding:34px 38px}
+  .big{width:270px;height:270px;border-radius:50%;overflow:hidden;position:relative}
+  .big svg{position:absolute;width:405px;height:405px;left:-67.5px;top:-67.5px;display:block}
+  .hero-t{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--tx3);margin-bottom:8px}
+  .hero h2{font-size:21px;margin:0 0 10px;font-weight:600;letter-spacing:-.2px}
+  .hero p{margin:0 0 9px;font-size:13px;color:var(--tx2);line-height:1.7}
+  .hero p b{color:var(--tx);font-weight:600}
+  .sizes{display:flex;align-items:center;gap:14px;margin-top:20px}
+  .sz{border-radius:50%;overflow:hidden;position:relative;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+  .sz svg{position:absolute;display:block}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:18px;max-width:840px}
+  .card{background:var(--surf);border:1px solid var(--line);border-radius:20px;padding:22px 18px 18px;
+    display:flex;flex-direction:column;align-items:center}
+  .ico{width:150px;height:150px;border-radius:50%;overflow:hidden;position:relative}
+  .ico svg{position:absolute;width:225px;height:225px;left:-37.5px;top:-37.5px;display:block}
+  .nm{margin-top:15px;font-size:13.5px;font-weight:600;letter-spacing:.2px}
+  .en{font-size:10px;color:var(--tx3);letter-spacing:1.2px;text-transform:uppercase;margin-top:1px}
+  .desc{font-size:11.5px;color:var(--tx2);text-align:center;margin-top:9px;line-height:1.55}
+
+  .status{display:flex;gap:12px;align-items:flex-start;margin-top:22px;padding:15px 20px;
+    background:#15201a;border:1px solid #2d4436;border-radius:14px;font-size:12.4px;color:#a8c4ae;line-height:1.7}
+  .status b{color:#d6e8da;font-weight:600}
+  .dot{width:7px;height:7px;border-radius:50%;background:#5fbf7e;margin-top:8px;flex:none;box-shadow:0 0 0 3px rgba(95,191,126,.16)}
+  .notes{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .note{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+  .note h3{font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--tx3);margin:0 0 10px;font-weight:600}
+  .note p{margin:0 0 9px;font-size:12.6px;color:var(--tx2);line-height:1.7}
+  .note p:last-child{margin-bottom:0}
+  .note b{color:var(--tx);font-weight:600}
+  .k{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;background:#282530;
+    border:1px solid #3a3642;border-radius:5px;padding:1px 6px;color:#C9C2D6}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">DocBox · 应用图标 · 定稿</div>
+  <h1>三本书<small>横叠，加一条书签</small></h1>
+  <p class="lede">
+    三本横着叠，长短厚薄都不同、左右参差、中间留暗缝。颜色交给<b>一条朱砂书签</b>，而不是一整本书——
+    底 60、纸 30、朱砂 10，按这个比例分。
+  </p>
+
+  <div class="bar">
+    <span class="lb">配色</span>
+    <button class="pal" data-pal="ink" aria-pressed="true"><span class="dots"><i class="d" style="background:#17141A"></i><i class="d" style="background:#E8DCC5"></i><i class="d" style="background:#C9502C"></i></span><span>墨与纸</span></button>
+    <button class="pal" data-pal="indigo" aria-pressed="false"><span class="dots"><i class="d" style="background:#182642"></i><i class="d" style="background:#E4DAC8"></i><i class="d" style="background:#D5763F"></i></span><span>靛与陶</span></button>
+    <button class="pal" data-pal="celadon" aria-pressed="false"><span class="dots"><i class="d" style="background:#0F2B2B"></i><i class="d" style="background:#E7E0D1"></i><i class="d" style="background:#C29B2E"></i></span><span>青瓷</span></button>
+    <button class="pal" data-pal="cream" aria-pressed="false"><span class="dots"><i class="d" style="background:#EDE2CF"></i><i class="d" style="background:#262230"></i><i class="d" style="background:#BE4227"></i></span><span>奶与墨</span></button>
+  </div>
+
+  <div class="hero">
+    <div><div class="big" id="heroIco"></div></div>
+    <div>
+      <div class="hero-t">推荐</div>
+      <h2>摞 · Stack</h2>
+      <p>三本横叠：中本最长、向左探出去一截，底本收回来，最上面那本最短、还歪了 7°。书签从中间那本的缝里垂下来。</p>
+      <p><b>为什么横着叠</b>：真书书脊的长宽比约 1:4。横叠时每本能拿到 52×11dp，这个比例是真的书。竖着并排三本，每本只剩 13×40dp，无论加什么细节都只能读成柱子——我试过四版，全部失败。</p>
+      <p><b>四个让它像书的细节</b>：左端半圆书脊（rl = 厚度 × 0.44）、右端小圆角、本与本之间 0.9dp 的暗缝、以及一条从书缝里垂下来的<b>朱砂书签</b>。中间那本压暗一档，三本才分得开。</p>
+      <p><b>关于书签</b>：它是整张图里唯一能把"一摞圆角矩形"锁定成"一摞书"的东西——三条横杠可以是层叠、是电池、是三明治，但三条横杠加一条垂下来的带子，只能是书。</p>
+      <div class="sizes" id="heroSizes"></div>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="status">
+    <span class="dot"></span>
+    <span><b>推荐方案已落地</b> —— <span class="k">ic_launcher_foreground.xml</span> / <span class="k">ic_launcher_background.xml</span> / <span class="k">ic_launcher_monochrome.xml</span> 三个已写入 <span class="k">res/drawable</span>，
+    <span class="k">mipmap-anydpi</span> 的 monochrome 层已指向新文件，<span class="k">assembleDebug</span> 通过。原绿机器人备份在 <span class="k">.icon-backup/</span>。</span>
+  </div>
+
+  <hr>
+
+  <div class="notes">
+    <div class="note">
+      <h3>框为什么必须删</h3>
+      <p>上一版的框是 <span class="k">stroke-width:7</span> 的白描边、圆头端点。按标识构造法，主文件里的描边必须转成填充轮廓——描边在不同缩放、单色、被裁切时厚度会被重新解释。所以它在紫底上读成了<b>塑料支架</b>，不是匣子。</p>
+      <p>更实际的原因：框在 24dp 下吃掉 14dp 的视觉重量，只为说一句"这里有个容器"，而三本书自己已经把这句说完了。</p>
+    </div>
+    <div class="note">
+      <h3>配色为什么会丑</h3>
+      <p>旧版 <span class="k">#D0BCFF 书 / #6750A4 底</span>：明度差只有约 18%，同色相挨在一起，整张图标糊成一坨紫；再加一支粉笔，三个颜色全挤在色轮 30° 以内，没有层级。</p>
+      <p>新版按 <b>60-30-10</b> 分配：底 60、纸书 30、朱砂只给一条书签占 10。色相对撞（橙红 vs 深墨）建立分离，明度差约 75%，深色主题和单色层都不用改结构。</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const PALS = {
+  ink:     { bg:"#17141A", paper:"#E8DCC5", accent:"#C9502C" },
+  indigo:  { bg:"#182642", paper:"#E4DAC8", accent:"#D5763F" },
+  celadon: { bg:"#0F2B2B", paper:"#E7E0D1", accent:"#C29B2E" },
+  cream:   { bg:"#EDE2CF", paper:"#262230", accent:"#BE4227" },
+};
+let PAL = PALS.ink;
+
+const hex2rgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+const rgb2hex = a => "#" + a.map(v => Math.round(v).toString(16).padStart(2,"0")).join("");
+const mix = (a,b,t) => { const A=hex2rgb(a), B=hex2rgb(b); return rgb2hex(A.map((v,i)=>v+(B[i]-v)*t)); };
+
+/* 一端半圆、一端小圆角的横条：真书侧面就是这个轮廓 */
+function hbar(x, y, w, h, bigLeft) {
+  const rl = bigLeft ? h*0.44 : 2.4, rr = bigLeft ? 2.4 : h*0.44;
+  return `M${x+rl} ${y} H${x+w-rr} A${rr} ${rr} 0 0 1 ${x+w} ${y+rr} V${y+h-rr} `
+       + `A${rr} ${rr} 0 0 1 ${x+w-rr} ${y+h} H${x+rl} A${rl} ${rl} 0 0 1 ${x} ${y+h-rl} `
+       + `V${y+rl} A${rl} ${rl} 0 0 1 ${x+rl} ${y} Z`;
+}
+
+/* 一本书：底色块 + 页口那条压暗的页边 */
+function slab(x, y, w, h, tilt, color, pageRight) {
+  const cx = x+w/2, cy = y+h;
+  const g = tilt ? ` transform="rotate(${tilt} ${cx} ${cy})"` : "";
+  return `<g${g}>
+    <path d="${hbar(x, y, w, h, pageRight)}" fill="${color}"/>
+  </g>`;
+}
+
+const GAP = 0.9;
+
+/* 笔：平顶锥杆，比书窄、靠色相跳出来 */
+function pen(cx, top, tip, w) {
+  const hw = w / 2, sh = tip - 8.6;
+  return `<path d="M${cx - hw} ${top} H${cx + hw} V${sh} L${cx} ${tip} L${cx - hw} ${sh} Z" fill="${PAL.accent}"/>`;
+}
+
+const HERO = () => `<g transform="translate(2 0)">`
+  + slab(30, 59.5, 44, 12, 0, PAL.paper, true)
+  + slab(25, 46.6, 52.5, 12, 0, mix(PAL.paper, PAL.bg, .15), true)
+  + slab(36, 34, 38, 11.4, -7, PAL.paper, true)
+  + `<path d="M67.4 47.6 L71.8 47.6 V62.4 L69.6 59.2 L67.4 62.4 Z" fill="${PAL.accent}"/>`
+  + `</g>`;
+
+/* ---------- 备选 ---------- */
+const V = {
+  A: { name:"双叠", en:"Two", desc:"只叠两本，书签垂得更长。最简洁的一版。",
+       body: () => slab(27, 57, 52, 13.5, 0, PAL.paper, true) +
+                    slab(31, 42.6, 44, 12.5, -3, PAL.paper, true) +
+                    `<path d="M65.5 42.6 L71.5 40.4 V63.5 L68.5 59.6 L66.2 64 Z" fill="${PAL.accent}"/>` },
+  B: { name:"散", en:"Loose", desc:"三本歪得各不相同，像刚放下还没摆正。",
+       body: () => slab(28, 60.5, 50, 12, 1.5, PAL.paper, true) +
+                    slab(27, 47.2, 45, 12, -2.5, PAL.paper, true) +
+                    slab(33, 34, 40, 11.5, 4, PAL.paper, true) +
+                    `<path d="M63 33.4 L69 31 V47.5 L66 43.4 L63.8 47.8 Z" fill="${PAL.accent}"/>` },
+  C: { name:"笔", en:"Pen", desc:"两本叠着，一支笔插在书缝里，露出笔杆。保留「中间一竖为笔」的原意。",
+       body: () => pen(54, 30, 74, 5.6) +
+                    slab(28, 59.5, 48, 12, 0, PAL.paper, true) +
+                    slab(31, 47.5, 43, 12, -2, mix(PAL.paper, PAL.bg, .13), true) }
+
+};
+
+function svg(body) {
+  return `<svg viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
+    <rect width="108" height="108" fill="${PAL.bg}"/>${body}</svg>`;
+}
+function sized(body, px) {
+  const k = px*1.5, off = -(k-px)/2;
+  return `<svg viewBox="0 0 108 108" style="width:${k}px;height:${k}px;left:${off}px;top:${off}px"
+    xmlns="http://www.w3.org/2000/svg"><rect width="108" height="108" fill="${PAL.bg}"/>${body}</svg>`;
+}
+
+function render() {
+  document.getElementById('heroIco').innerHTML = svg(HERO());
+  document.getElementById('heroSizes').innerHTML = [56,40,28,20]
+    .map(p => `<div class="sz" style="width:${p}px;height:${p}px" title="${p}dp">${sized(HERO(), p)}</div>`).join('');
+  document.getElementById('grid').innerHTML = Object.values(V).map(v => `
+    <div class="card">
+      <div class="ico">${svg(v.body())}</div>
+      <div class="nm">${v.name}</div>
+      <div class="en">${v.en}</div>
+      <div class="desc">${v.desc}</div>
+    </div>`).join('');
+}
+
+document.querySelectorAll('.pal').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.pal').forEach(x => x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  PAL = PALS[b.dataset.pal];
+  render();
+}));
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 分享用的暫存檔集中放在 cache/exports，不暴露其他目錄。 -->
+<paths>
+    <cache-path name="exports" path="exports/" />
+</paths>

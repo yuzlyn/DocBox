@@ -1,132 +1,142 @@
-# MDEditor
+# DocBox
 
 [![API](https://img.shields.io/badge/API-26%2B-brightgreen.svg)](https://android-arsenal.com/api?level=26)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-blue.svg)](https://kotlinlang.org)
-[![Compose](https://img.shields.io/badge/Jetpack%20Compose-latest-blueviolet.svg)](https://developer.android.com/develop/ui/compose)
+[![Compose](https://img.shields.io/badge/Jetpack%20Compose-2026.02.01-blueviolet.svg)](https://developer.android.com/develop/ui/compose)
+[![Material 3](https://img.shields.io/badge/Material%203-Expressive-6750A4.svg)](https://m3.material.io)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A modern, beautifully crafted Markdown note-taking app for Android, built entirely with Jetpack Compose and Material 3 (Material You).
+DocBox is a Markdown notebook and book reader for Android, written in Kotlin with Jetpack Compose and Material 3 Expressive.
 
-<p align="center">
-  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" width="128" alt="MDEditor Icon">
-</p>
+Notes are plain `.md` files inside a folder you pick through the system folder picker. The app keeps only metadata (title, tags, layout) in a local Room database. There is no account, no sync and no internet permission. Imported books stay in the app's own directory and are read in a built-in reader that shares the editor's typography, including vertical (top-to-bottom, right-to-left) layout.
+
+[简体中文说明](README.zh-CN.md)
 
 ## Features
 
-- **Full Markdown Support** — Powered by [commonmark-java](https://github.com/commonmark/commonmark-java). Write in pure Markdown with live preview: headings, paragraphs, code blocks, blockquotes, tables, bullet & numbered lists, bold, italic, underline, strikethrough, links, math blocks and more.
+### Writing
 
-- **Material You Design** — Full Material 3 theming with dynamic Monet color extraction from your wallpaper, plus 9 hand-picked custom background colors for each note.
+- **Markdown with live preview.** markdown-it with the GFM flavour: tables, task lists, footnotes, `==highlight==`, `~sub~`, `^sup^`, definition lists and attribute blocks, plus syntax highlighting and MathJax formulas in a bundled WebView.
+- **Inline HTML.** Tags such as `<br>`, `<span style="…">`, `<u>`, `<kbd>` and `<details>` render as written, the way the VS Code Markdown preview does. Scripts, iframes, event-handler attributes and `javascript:` URLs are stripped; the source view always shows the raw text.
+- **Auto-save that survives a crash.** A draft lands in Room about 400 ms after you stop typing, the `.md` file is written about a second later, and the app flushes again when it goes to the background. If the process is killed mid-edit, the draft is written back on the next launch.
+- **Horizontal or vertical.** Vertical mode reads top-to-bottom and right-to-left. Character advance (1.2em) and column pitch (1.72em) are set separately for vertical text, and a kinsoku pass keeps closing punctuation off the top of a column. When a long line wraps into the next column it stays the same line and is not numbered twice.
+- **Writing grid.** Grid or ruled paper behind the text, using the same cell pitch as the exported image, so the editor and the shared picture are the same paper.
+- **Undo and redo** across edits, with the caret scrolled back into view.
 
-- **Dark Mode** — Adaptive dark/light themes with proper card elevation, text readability, and color palettes for every note background.
+### Import
 
-- **Notebook Organization** — Group notes into notebooks for structured workflows.
+- `.docx`, `.pdf`, `.epub`, `.mobi` / `.azw3`, `.fb2`, `.html`, `.markdown` and plain text. The format is detected from the extension first and the file header second, so a file without an extension still opens.
+- Each format has its own reader: Word's OOXML, PDFBox for the PDF text layer, OPF/spine for EPUB, and an HTML to Markdown converter that keeps headings, lists, links and code fences.
+- Imported notes carry a small badge with the source format. A note imported from a PDF keeps a link to the original file so the editor can reopen the real layout; older notes can be re-linked once, and a start-up check drops links whose permission is gone.
 
-- **Archive & Trash** — Soft-delete with 7-day auto-cleanup. Archive notes to keep them out of sight without deleting. Restore or permanently delete anytime.
+### Library and reader
 
-- **Batch Operations** — Long-press to enter selection mode. Multi-select notes for batch pin, color, archive, or delete with smooth exit animations (scale + fade).
+- EPUB, MOBI and FB2 books on a home shelf, with reading progress kept per book.
+- Native reader with horizontal or vertical layout, paged or scrolled, adjustable font size, line height and margins, and a Monet-derived paper tint.
+- Imported fonts and note backgrounds apply to the reader as well.
 
-- **Local-First File Storage** — Uses Android's Storage Access Framework (SAF). Notes are saved as `.md` files in a user-chosen folder. Your data, your control.
+### Share and export
 
-- **Multi-Language** — English, 简体中文, 繁體中文, Français. Switch on-the-fly in Settings.
+- Markdown, plain text, Word (`.docx`), PDF and PNG.
+- PDF and PNG follow the note's direction: a vertical note exports vertical, with the same grid as the editor.
+- PNG export can carry a profile card. Horizontal notes get the avatar on the left with nickname, email and GitHub on three lines to its right, both centred on the same horizontal axis. Vertical notes get the avatar on top with the three data columns below it. Position (before or after the text), avatar and each field can be toggled in the share sheet and are remembered. Long vertical notes keep extending leftwards instead of being cut off.
+- Markdown and plain-text exports print the card as three lines of text; PDF prints the text without the avatar.
 
-- **Search & Sort** — Instant search across all notes. Sort by custom order, creation date, or last modified.
+### Reading statistics
 
-- **Layout Toggle** — Switch between staggered grid and compact list views.
+- Reading time, books read and files edited, all computed on device.
+- A year-long heat map plus rankings for books and files.
+- The stats screen greets you with your nickname and avatar. Each category can be switched off in Settings, and turning statistics off stops writes entirely.
 
-- **Animated Everything** — Card entrance animations, deletion transitions, smooth navigation, and a themed splash screen.
+### Look and feel
 
-## Screenshots
+- Material 3 Expressive: Monet dynamic colour from the wallpaper, custom seed colours, dark mode, card shapes and bundled fonts.
+- Import your own `.ttf` / `.otf` fonts and set a default for the editor and for the reader separately. Imported fonts can be deleted again.
+- Note background: Monet, a solid colour, or your own image (several can be imported). Text on an image can be forced dark or light.
+- Four languages: 繁體中文, 简体中文, English, Français, switchable at runtime.
+- One set of Material 3 Expressive transitions across screens, with content appearing in sequence.
 
-> *Coming soon*
+## Install
 
-## Tech Stack
+Download the APK from [Releases](https://github.com/yuzlyn/DocBox/releases). Android 8.0 (API 26) or newer.
+
+The APK is signed with the Android debug certificate, the same one used since v1.0.0, so it installs over an older version without uninstalling first. It is not a Play Store build.
+
+## Build
+
+Requirements: JDK 17 or newer, and an Android SDK with platform 37 and its build tools.
+
+```bash
+git clone https://github.com/yuzlyn/DocBox.git
+cd DocBox
+./gradlew assembleDebug
+```
+
+`./gradlew test` runs the JVM test suite. `./gradlew connectedDebugAndroidTest` runs the instrumentation tests, which include a rendering suite that writes sample PNG and PDF exports to the app's external files directory for visual inspection.
+
+A release build (`./gradlew assembleRelease`) is signed with the debug keystore named in `app/build.gradle.kts`. Point it at your own keystore before publishing anywhere else.
+
+## Tech stack
 
 | Category | Technology |
 |---|---|
 | Language | [Kotlin](https://kotlinlang.org) 2.2.10 |
-| UI Framework | [Jetpack Compose](https://developer.android.com/develop/ui/compose) + Material 3 |
-| Navigation | [Navigation Compose](https://developer.android.com/develop/ui/compose/navigation) |
-| Architecture | MVVM with `ViewModel` + `StateFlow` |
-| Markdown Parsing | [commonmark-java](https://github.com/commonmark/commonmark-java) 0.21.0 + GFM Tables extension |
-| File Access | [SAF](https://developer.android.com/guide/topics/providers/document-provider) (DocumentFile) |
-| Build System | Gradle with [Version Catalog](https://docs.gradle.org/current/userguide/platforms.html) |
+| UI | [Jetpack Compose](https://developer.android.com/develop/ui/compose) (BOM 2026.02.01) + [Material 3 Expressive](https://m3.material.io) 1.5.0-alpha26 |
+| Navigation | [Navigation 3](https://developer.android.com/guide/navigation) 1.2.1 |
+| Architecture | MVVM, `ViewModel` + `StateFlow` |
+| Markdown rendering | [markdown-it](https://github.com/markdown-it/markdown-it) 14 + [highlight.js](https://highlightjs.org) + [MathJax](https://www.mathjax.org), bundled into a WebView preview engine |
+| File access | [Storage Access Framework](https://developer.android.com/guide/topics/providers/document-provider) (DocumentFile) 1.0.1 |
+| Local data | [Room](https://developer.android.com/training/data-storage/room) 2.8.5, [DataStore](https://developer.android.com/topic/libraries/architecture/datastore) 1.1.7 |
+| PDF text extraction | [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android) 2.0.27.0 |
+| Colour | [material-kolor](https://github.com/jordond/materialkolor) 4.0.5 |
+| Build | Gradle 9.4.1, AGP 9.2.1, KSP 2.2.10-2.0.2, version catalog |
 
-## Project Structure
+## Project layout
 
 ```
 app/src/main/java/com/yuzlyn/mdeditor/
-├── MainActivity.kt              # Entry point, splash background, navigation host
+├── MainActivity.kt              # Entry point, Navigation 3 back stack, transitions
 ├── data/
-│   ├── NoteStorage.kt           # .md file read/write via SAF
-│   ├── ThemeConfig.kt           # Theme state management (System/Monet/Custom)
-│   ├── MonetPalette.kt          # 9-color palette definitions (light + dark)
-│   └── profile/
-│       └── AuthorProfile.kt     # Author info & social links
-└── ui/
-    ├── theme/
-    │   └── MDEditorTheme.kt     # Material 3 dynamic color theme
-    ├── screen/
-    │   ├── MainScreen.kt        # Home, notebooks, archive, trash, search
-    │   ├── EditorScreen.kt      # Markdown editor + insert/format sheets
-    │   ├── MarkdownRenderer.kt  # AST-to-Compose renderer (commonmark)
-    │   ├── SettingsScreen.kt    # Theme, language settings
-    │   └── AboutScreen.kt       # About page with social links
-    └── viewmodel/
-        └── FileViewModel.kt     # Central state: notes, folders, selection
+│   ├── local/                   # Room database, DAOs, entities, migrations
+│   ├── repository/              # Note repository and merge rules
+│   ├── settings/                # DataStore-backed AppSettings
+│   ├── preview/                 # Preview palette and rendering config
+│   ├── profile/                 # Author profile used by the export card
+│   ├── book/                    # EPUB / MOBI / FB2 parsing, reader state
+│   ├── importer/                # DOCX, PDF, HTML readers
+│   ├── export/                  # DOCX writer, PDF/PNG renderer, export card
+│   ├── fonts/                   # User font import
+│   ├── backgrounds/             # Note background store
+│   └── stats/                   # Reading and editing statistics
+├── ui/
+│   ├── component/               # Vertical body editor, cell text, writing guide
+│   ├── i18n/                    # Four-language strings and help content
+│   ├── navigation/              # NavKey destinations
+│   ├── screen/                  # Editor, library, settings, profile, help
+│   ├── reader/                  # Book reader
+│   ├── stats/                   # Stats screen and its settings
+│   ├── theme/                   # Colour, type, spacing, launcher icon
+│   └── viewmodel/               # Screen state holders
+
+app/src/test/                    # JVM tests (parsers, layout, export, stats)
+app/src/androidTest/             # Instrumentation and export rendering tests
+preview-engine/                  # Source for the bundled WebView preview engine
+icon-samples/                    # Launcher icon generators and samples
+tools/                           # Helper scripts (test book generation)
 ```
 
-## Getting Started
+## Data and privacy
 
-### Prerequisites
-
-- Android Studio (latest stable)
-- JDK 17+
-- Gradle 9.x
-
-### Build & Run
-
-```bash
-git clone https://github.com/yuzlyn/MDEditor.git
-cd MDEditor
-./gradlew installDebug
-```
-
-Open the project in Android Studio, sync Gradle, and run on a device or emulator (API 26+).
-
-### First Launch
-
-1. Grant storage permission when prompted
-2. Select a folder to store your Markdown notes
-3. Tap **+** to create your first note
+- Note bodies are `.md` files in the folder you picked. Removing the app does not remove them.
+- Titles, tags, layout, drafts, statistics and imported books live in the app's private directory.
+- The app declares no internet permission, so nothing leaves the device.
 
 ## License
 
-```
-MIT License
-
-Copyright (c) 2025 Yuzlyn
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+[MIT](LICENSE) © 2025 Yuzlyn
 
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/yuzlyn">Yuzlyn</a></sub>
+  <sub>Built by <a href="https://github.com/yuzlyn">Yuzlyn</a></sub>
 </p>

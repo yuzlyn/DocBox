@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!--
+      起始視窗（冷啟動時系統先畫的那一幀）。
+
+      windowBackground 同時決定兩件事：Android 12 以前那張「白屏」，
+      以及啟動視窗交給 Compose 之後、第一幀畫出來之前露出的底色。
+      所以它必須跟 values-night 的深色版本成對，否則夜間會閃白。
+    -->
     <style name="Theme.MDEditor" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:colorBackground">@color/splash_background</item>
     </style>
 </resources>

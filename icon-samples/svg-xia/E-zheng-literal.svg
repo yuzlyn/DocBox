@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+  <title>DocBox icon — 正 (Literal)</title>
+  <desc>Material 3 Expressive adaptive icon. 108dp canvas, 72dp visible, 66dp safe zone.</desc>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7A63B8"/><stop offset="1" stop-color="#5B4596"/></linearGradient></defs>
+  <rect width="108" height="108" fill="url(#bg)"/>
+<path d="M75 30 H33 V78 H75" fill="none" stroke="#FFFFFF"
+  stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M41 40 H67 V74.5 M41 40 V74.5 M41 58 H67" fill="none" stroke="#FFFFFF"
+        stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M51.4 40 H56.6 V66 L54 74.6 L51.4 66 Z" fill="#F093AE"/>
+</svg>

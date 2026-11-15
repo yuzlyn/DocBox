@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 夜間：父主題也要換成深色，否則系統會在起始視窗上疊一層淺色遮罩。 -->
+    <style name="Theme.MDEditor" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:colorBackground">@color/splash_background</item>
+    </style>
+</resources>

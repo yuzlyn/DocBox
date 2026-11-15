@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+          儀器測試用的宿主 Activity（只在 debug 變體存在）。
+          WebView 必須掛在顯示中的 Activity 上才會真的排版，書頁渲染的驗證
+          （頁數、直排長條寬度、圖片載入）全部要真排版才算數。
+        -->
+        <activity
+            android:name="com.yuzlyn.mdeditor.ReaderHostActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
+        <!-- 閱讀器預覽：命令列直接丟一本書進來，逐項比對版面。 -->
+        <activity
+            android:name="com.yuzlyn.mdeditor.ReaderPreviewActivity"
+            android:exported="true"
+            android:theme="@style/Theme.MDEditor" />
+    </application>
+
+</manifest>

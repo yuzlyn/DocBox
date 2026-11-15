@@ -1,7 +1,6 @@
 *.iml
 .gradle
 /local.properties
-/.kotlin/
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
@@ -14,5 +13,17 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Kotlin 編譯期的暫存與錯誤日誌
+.kotlin/
+
+# 本機的圖示草稿與舊版備份，不進版控
+.icon-backup/
+
+# 專案內的工作記錄與助手暫存
+.workbuddy/
+
+# 打包產物與匯出樣張
 *.apk
-.cursorrules
+*.aab
+export-render/
