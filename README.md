@@ -20,7 +20,7 @@ Notes are plain `.md` files inside a folder you pick through the system folder p
 - **Inline HTML.** Tags such as `<br>`, `<span style="…">`, `<u>`, `<kbd>` and `<details>` render as written, the way the VS Code Markdown preview does. Scripts, iframes, event-handler attributes and `javascript:` URLs are stripped; the source view always shows the raw text.
 - **Auto-save that survives a crash.** A draft lands in Room about 400 ms after you stop typing, the `.md` file is written about a second later, and the app flushes again when it goes to the background. If the process is killed mid-edit, the draft is written back on the next launch.
 - **Horizontal or vertical.** Vertical mode reads top-to-bottom and right-to-left. Character advance (1.2em) and column pitch (1.72em) are set separately for vertical text, and a kinsoku pass keeps closing punctuation off the top of a column. When a long line wraps into the next column it stays the same line and is not numbered twice.
-- **Writing grid.** Grid or ruled paper behind the text, using the same cell pitch as the exported image, so the editor and the shared picture are the same paper.
+- **Writing grid.** Grid or ruled paper behind the text, filling the whole writing area rather than stopping at the last line, and using the same cell pitch as the exported image, so the editor and the shared picture are the same paper. In vertical mode every column — written or still blank — shares one pitch, so the cells stay aligned straight across the page.
 - **Undo and redo** across edits, with the caret scrolled back into view.
 
 ### Import

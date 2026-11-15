@@ -286,11 +286,14 @@ fun HorizontalCellText(
         } else {
             0
         }
+        // 格線要鋪到畫布底端，而不是只鋪到最後一行字——空白稿紙也是紙。
+        // 上限取「畫布裝得下幾列」與「可見範圍到第幾列」的較小值，長文捲動時才不會整份重畫。
+        val rowsInCanvas = ceil(height / rowPitchPx).toInt()
         val lastRow = if (scrollState != null && viewportHeightPx > 0f) {
             (ceil((scrollState.value + viewportHeightPx) / rowPitchPx).toInt() + 1)
-                .coerceAtMost(layout.rows - 1)
+                .coerceAtMost(rowsInCanvas)
         } else {
-            layout.rows - 1
+            rowsInCanvas
         }
 
         // 格線：豎線貫通到底，橫線是每一格自己的上下邊（所以行與行之間有縫）。

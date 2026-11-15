@@ -2009,17 +2009,20 @@ fun EditorScreen(
                                     }
                                     // 行距比格高多一些，字下方才有空隙。
                                     val rowPitchPx = fontPx * ROW_PITCH_EM
-                                    // 格子鋪滿整個編輯區，而不是只鋪到最後一個字。
+                                    // 內層在 verticalScroll 裡，maxHeight 是無限大，拿不到可視高度，
+                                    // 改用外層 Box 實測的高度，再扣掉上下內距與底部工具列的預留。
+                                    val viewportPx = (bodyViewportPx -
+                                        with(density) {
+                                            (Space.s100 + editorBottomReserve).toPx()
+                                        }).coerceAtLeast(1f)
+                                    // 格子紙要鋪滿整個可視區，而不是只鋪到最後一行字：
+                                    // 只鋪內容高度的話，短內容下面三分之二會是一片空白，
+                                    // 看起來就像格子畫到一半斷掉。
                                     val editorHeightPx = max(
                                         (cellLayout?.rows ?: 1) * rowPitchPx,
-                                        with(density) { (Space.s900 * 5f).toPx() }
+                                        viewportPx
                                     )
                                     val editorHeight = with(density) { editorHeightPx.toDp() }
-                                    // 內層在 verticalScroll 裡，maxHeight 是無限大，
-                                    // 可視高度改從螢幕高度取（只用來決定要畫哪幾列）。
-                                    val viewportPx = with(density) {
-                                        LocalConfiguration.current.screenHeightDp.dp.toPx()
-                                    }
 
                                     // 作文格時，選取底色與輸入法的組字底線都由我們自己畫；
                                     // 欄位本身要保持完全透明，否則會在字的下方多印一層。
@@ -2067,7 +2070,16 @@ fun EditorScreen(
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(editorHeight)
+                                            // 固定高度會把溢出可視區的段落直接裁掉，外層又因為
+                                            // 「內容就只有這麼高」而滑不動——結果就是只能看到上面一小段正文。
+                                            // 作文格是自己排版、行數已知，才用固定高度；其餘一律讓它跟著內容長。
+                                            .then(
+                                                if (gridActive) {
+                                                    Modifier.height(editorHeight)
+                                                } else {
+                                                    Modifier.heightIn(min = editorHeight)
+                                                }
+                                            )
                                             .focusRequester(focusRequester)
                                             .onGloballyPositioned { coords ->
                                                 // 相對滾動內容的起點，等於欄位上方那段內距。

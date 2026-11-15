@@ -579,6 +579,16 @@ fun VerticalBodyEditor(
             buildVerticalColumns(text, rows, graphemes)
         }
         val listState = rememberLazyListState()
+        // 格子的節拍（行距、基線）由「真的渲染出文字的那一欄」量出來之後**全欄共用**。
+        // 原本每欄自己量、空白欄用全域量測值，兩套數字一有出入，
+        // 有字的欄和沒字的欄就會畫出兩種節奏——往下幾十列就明顯錯開。
+        var guideAdvancePx by remember { mutableStateOf(0f) }
+        var guideBaselinePx by remember { mutableStateOf(0f) }
+        // 字型或字級換了就重新量：沿用舊節拍，格子會跟新的字完全對不上。
+        LaunchedEffect(cellHeightPx, baselinePx) {
+            guideAdvancePx = 0f
+            guideBaselinePx = 0f
+        }
         val caretIndex = value.selection.start.coerceIn(0, text.length)
         // 手勢處理器存活在 pointerInput 裡，key 沒變就不會重建；用這兩個轉發
         // 讓它每次都讀到最新的內容與分欄，否則「同長度的改字」之後點擊會用舊字串回寫。
@@ -753,6 +763,9 @@ fun VerticalBodyEditor(
                     val start = columns.starts[index]
                     val end = columns.ends[index]
                     val columnRows = columns.rowsOf(index)
+                    // 這一欄畫格子、畫游標、換算點擊，用的都是同一個節拍。
+                    val rowHeightPx = if (guideAdvancePx > 0f) guideAdvancePx else cellHeightPx
+                    val rowBaselinePx = if (guideBaselinePx > 0f) guideBaselinePx else baselinePx
                     // 欄尾與下一欄欄首是同一個 offset：預設畫在下一欄的欄首，
                     // 只有真的點在這一欄的行尾時，游標才沿著這一欄畫在欄尾。
                     val caretRow = caretRowInColumn(columns, index, caretIndex, tailColumn)
@@ -777,7 +790,7 @@ fun VerticalBodyEditor(
                         modifier = Modifier
                             .width(cellWidth)
                             .fillMaxHeight()
-                            .pointerInput(index, start, end, text.length, gutterPx) {
+                            .pointerInput(index, start, end, text.length, gutterPx, rowHeightPx) {
                                 // 不用 detectTapGestures：它在 down 就消費事件，會擋住 LazyRow 的拖曳捲動。
                                 awaitEachGesture {
                                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -794,7 +807,7 @@ fun VerticalBodyEditor(
                                         columns = latestColumns.value,
                                         column = index,
                                         y = down.position.y - gutterPx,
-                                        cellHeight = cellHeightPx,
+                                        cellHeight = rowHeightPx,
                                         textLength = current.text.length
                                     )
                                     // 記住「這次是點在行尾」：同一欄的欄尾與下一欄的欄首是
@@ -829,18 +842,14 @@ fun VerticalBodyEditor(
                                 .fillMaxSize()
                                 .padding(top = gutter)
                         ) {
-                            // 這一欄實際的基線與行距，由下面那個 Text 的排版結果回填；
-                            // 格子用它們定位，才不會因為全域量測的微小誤差往下累積偏移。
-                            var columnBaseline by remember { mutableStateOf(0f) }
-                            var columnAdvance by remember { mutableStateOf(0f) }
                             // 輔助線鋪在最底層：文字、選取與游標都壓在它上面。
                             if (writingGuide != WritingGuide.NONE) {
                                 Canvas(modifier = Modifier.fillMaxSize()) {
                                     drawVerticalGuide(
                                         guide = writingGuide,
                                         cellWidthPx = fontSizePx,
-                                        rowHeightPx = if (columnAdvance > 0f) columnAdvance else cellHeightPx,
-                                        baselinePx = if (columnBaseline > 0f) columnBaseline else baselinePx,
+                                        rowHeightPx = rowHeightPx,
+                                        baselinePx = rowBaselinePx,
                                         color = variantColor
                                     )
                                 }
@@ -850,9 +859,9 @@ fun VerticalBodyEditor(
                                     for (row in selectedRows) {
                                         drawRoundRect(
                                             color = selectionColor,
-                                            topLeft = Offset(0f, row * cellHeightPx),
-                                            size = Size(size.width, cellHeightPx),
-                                            cornerRadius = CornerRadius(cellHeightPx * 0.25f)
+                                            topLeft = Offset(0f, row * rowHeightPx),
+                                            size = Size(size.width, rowHeightPx),
+                                            cornerRadius = CornerRadius(rowHeightPx * 0.25f)
                                         )
                                     }
                                 }
@@ -889,8 +898,11 @@ fun VerticalBodyEditor(
                                         } else {
                                             0f
                                         }
-                                        if (b != columnBaseline) columnBaseline = b
-                                        if (a != columnAdvance) columnAdvance = a
+                                        // 只採納「第一個量得到的值」，之後固定住：
+                                        // 每欄都回寫的話，兩欄浮點尾數差一點點就會互相覆蓋、
+                                        // 每一帧都重組，格子反而跟著抖。
+                                        if (guideBaselinePx <= 0f && b > 0f) guideBaselinePx = b
+                                        if (guideAdvancePx <= 0f && a > 0f) guideAdvancePx = a
                                     }
                                 )
                             }
@@ -901,7 +913,7 @@ fun VerticalBodyEditor(
                                     // 2dp 的線會把空隙填滿、看起來就像貼在字上。
                                     val stroke = 1.5.dp.toPx()
                                     // 游標要落在「字與字之間」的格線上，而不是字格中央。
-                                    val y = (caretRow * cellHeightPx)
+                                    val y = (caretRow * rowHeightPx)
                                         .coerceIn(stroke / 2f, size.height - stroke / 2f)
                                     if (caretVisible) {
                                         drawLine(
@@ -941,17 +953,21 @@ fun VerticalBodyEditor(
                 }
 
                 items(count = fillerCount) {
+                    // 空白欄也要吃同一段上內距（行號帶）：文字欄的格子畫在 padding 之內，
+                    // 空白欄若從頂端起畫，兩邊格子就差這 14dp，一欄一欄看過去就是
+                    // 「有字的地方和沒字的地方沒對齊」。
                     Box(
                         modifier = Modifier
                             .width(cellWidth)
                             .fillMaxHeight()
+                            .padding(top = gutter)
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             drawVerticalGuide(
                                 guide = writingGuide,
                                 cellWidthPx = fontSizePx,
-                                rowHeightPx = cellHeightPx,
-                                baselinePx = baselinePx,
+                                rowHeightPx = if (guideAdvancePx > 0f) guideAdvancePx else cellHeightPx,
+                                baselinePx = if (guideBaselinePx > 0f) guideBaselinePx else baselinePx,
                                 color = variantColor
                             )
                         }
