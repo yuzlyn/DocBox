@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -60,6 +62,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -92,6 +95,7 @@ import com.yuzlyn.mdeditor.ui.component.FabMenuRow
 import com.yuzlyn.mdeditor.ui.component.RailButton
 import com.yuzlyn.mdeditor.ui.component.pressRipple
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
+import com.yuzlyn.mdeditor.ui.i18n.bookMessage
 import com.yuzlyn.mdeditor.ui.screen.Avatar
 import com.yuzlyn.mdeditor.ui.theme.Space
 import kotlinx.coroutines.launch
@@ -135,6 +139,8 @@ fun LibraryScreen(
     val motion = MaterialTheme.motionScheme
 
     val windowWidth = LocalConfiguration.current.screenWidthDp.dp
+    // 與「全部筆記」同一道門檻：840dp 以上用左側欄，頂欄只留搜尋。
+    val expanded = windowWidth >= 840.dp
     // 與「全部筆記」同一套柵格：每列至少 200dp，寬螢幕自動加欄。
     val gridColumns = (windowWidth / 200.dp).toInt().coerceIn(2, 6)
 
@@ -186,9 +192,13 @@ fun LibraryScreen(
         scope.launch {
             busy = true
             val entry = runCatching {
-                library.import(uri, BookOpener.queryDisplayName(context, uri))
+                library.import(
+                    uri = uri,
+                    displayName = BookOpener.queryDisplayName(context, uri),
+                    fallbackName = strings.libraryUntitledBook
+                )
             }.getOrElse {
-                message = it.message ?: strings.libraryEmptyHint
+                message = it.bookMessage(strings, strings.libraryEmptyHint)
                 null
             }
             reload()
@@ -203,12 +213,12 @@ fun LibraryScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             busy = true
-            runCatching { library.addFolder(uri) }
+            runCatching { library.addFolder(uri, strings.libraryFolderFallback) }
                 .onSuccess { folder ->
                     reload()
                     message = strings.libraryFolderBooks(library.booksIn(folder.id).size)
                 }
-                .onFailure { message = it.message ?: strings.libraryEmptyHint }
+                .onFailure { message = it.bookMessage(strings, strings.libraryEmptyHint) }
             busy = false
         }
     }
@@ -338,7 +348,7 @@ fun LibraryScreen(
 
                 folders.forEach { folder ->
                     FolderRow(
-                        name = folder.name,
+                        name = folder.name.ifBlank { strings.libraryFolderFallback },
                         count = folderCounts[folder.id] ?: 0,
                         denied = folderDenied[folder.id] == true,
                         onRemove = { pendingFolderRemoval = folder }
@@ -391,7 +401,7 @@ fun LibraryScreen(
     pendingFolderRemoval?.let { folder ->
         AlertDialog(
             onDismissRequest = { pendingFolderRemoval = null },
-            title = { Text(folder.name) },
+            title = { Text(folder.name.ifBlank { strings.libraryFolderFallback }) },
             text = { Text(strings.libraryRemoveFolderHint) },
             confirmButton = {
                 TextButton(
@@ -474,7 +484,8 @@ fun LibraryScreen(
                             strings.libraryEmpty
                         },
                         hint = strings.libraryEmptyHint,
-                        topPadding = topInset + Space.s200
+                        topPadding = topInset + Space.s200,
+                        startPadding = if (expanded) RAIL_WIDTH + Space.s400 else Space.s400
                     )
                 } else {
                     LazyVerticalStaggeredGrid(
@@ -485,7 +496,8 @@ fun LibraryScreen(
                         },
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            start = Space.s150,
+                            // 平板時左側欄是浮在內容上的，瀑布流要自己讓開那一條。
+                            start = if (expanded) RAIL_WIDTH + Space.s150 else Space.s150,
                             top = topInset + Space.s200,
                             end = Space.s150,
                             bottom = 132.dp
@@ -530,30 +542,115 @@ fun LibraryScreen(
                 }
 
                 LibraryTopBar(
-                    modifier = Modifier.align(Alignment.TopCenter),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(start = if (expanded) RAIL_WIDTH else Space.s0),
                     query = query,
                     onQueryChange = { query = it },
                     avatarPath = avatarPath,
                     layout = layout,
+                    // 平板：換版面、排序、選單、頭像都搬到左側欄，頂欄只留搜尋。
+                    railMode = expanded,
                     onToggleLayout = onToggleLayout,
                     onOpenSort = { showSortSheet = true },
                     onMenu = onOpenDrawer,
                     onOpenProfile = onOpenProfile
                 )
+
+                // 側欄最後畫，才蓋得住滑到它底下的瀑布流。
+                if (expanded) {
+                    LibrarySideRail(
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        avatarPath = avatarPath,
+                        layout = layout,
+                        onToggleLayout = onToggleLayout,
+                        onOpenSort = { showSortSheet = true },
+                        onOpenProfile = onOpenProfile,
+                        onMenu = onOpenDrawer
+                    )
+                }
+
+                // 遮罩放在 Scaffold 內容裡（不是 Scaffold 外面）：這樣加號與展開的選單
+                // 仍由 Scaffold 的 FAB 槽畫在上層。放到外面會連選單一起蓋住，
+                // 點「匯入書籍」只會打到遮罩、把選單關掉——看起來就是「點了沒反應」。
+                if (fabScrim > 0.001f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = fabScrim }
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { fabMenuOpen = false }
+                    )
+                }
             }
         }
+    }
+}
 
-        // 遮罩比內容晚繪製，連頂欄一起壓暗；加號與選單在 FAB 槽，仍浮在最上層。
-        if (fabScrim > 0.001f) {
-            Box(
+/** 平板左側欄的寬度：和「全部筆記」同一條。 */
+private val RAIL_WIDTH = 80.dp
+
+/**
+ * 書庫的側欄（平板／橫屏）。
+ *
+ * 和「全部筆記」的側欄同一個尺寸、同一個材質，差別只在搜尋留在頂欄：
+ * 書庫的搜尋是就地過濾，跳不到別頁去，硬搬進側欄反而多一次點擊。
+ */
+@Composable
+private fun LibrarySideRail(
+    modifier: Modifier = Modifier,
+    avatarPath: String,
+    layout: NoteLayout,
+    onToggleLayout: () -> Unit,
+    onOpenSort: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onMenu: () -> Unit
+) {
+    val strings = LocalAppStrings.current
+    Surface(modifier = modifier.fillMaxHeight(), color = MaterialTheme.colorScheme.surface) {
+        Row(modifier = Modifier.fillMaxHeight()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = fabScrim }
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { fabMenuOpen = false }
+                    .fillMaxHeight()
+                    .width(RAIL_WIDTH)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(vertical = Space.s200),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Space.s150)
+            ) {
+                RailButton(
+                    icon = Icons.Default.Menu,
+                    description = strings.menu,
+                    onClick = onMenu
+                )
+                RailButton(
+                    icon = if (layout == NoteLayout.MASONRY) {
+                        Icons.AutoMirrored.Rounded.ViewList
+                    } else {
+                        Icons.Rounded.GridView
+                    },
+                    description = strings.toggleLayout,
+                    onClick = onToggleLayout
+                )
+                RailButton(
+                    icon = Icons.AutoMirrored.Rounded.Sort,
+                    description = strings.sort,
+                    onClick = onOpenSort
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Avatar(
+                    avatarPath = avatarPath,
+                    size = Space.s600,
+                    contentDescription = strings.profileTitle,
+                    onClick = onOpenProfile
+                )
+            }
+            VerticalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
         }
     }
@@ -572,6 +669,8 @@ private fun LibraryTopBar(
     onQueryChange: (String) -> Unit,
     avatarPath: String,
     layout: NoteLayout,
+    /** 平板模式：選單、版面、排序、頭像都在左側欄了，這裡只留搜尋欄。 */
+    railMode: Boolean,
     onToggleLayout: () -> Unit,
     onOpenSort: () -> Unit,
     onMenu: () -> Unit,
@@ -590,12 +689,17 @@ private fun LibraryTopBar(
                     .height(Space.s700),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.size(Space.s700), contentAlignment = Alignment.Center) {
-                    RailButton(
-                        icon = Icons.Default.Menu,
-                        description = strings.menu,
-                        onClick = onMenu
-                    )
+                if (!railMode) {
+                    Box(
+                        modifier = Modifier.size(Space.s700),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        RailButton(
+                            icon = Icons.Default.Menu,
+                            description = strings.menu,
+                            onClick = onMenu
+                        )
+                    }
                 }
                 Surface(
                     shape = CircleShape,
@@ -646,31 +750,38 @@ private fun LibraryTopBar(
                                     onClick = { onQueryChange("") }
                                 )
                             }
-                            CircleIconButton(
-                                icon = if (layout == NoteLayout.MASONRY) {
-                                    Icons.AutoMirrored.Rounded.ViewList
-                                } else {
-                                    Icons.Rounded.GridView
-                                },
-                                description = strings.toggleLayout,
-                                onClick = onToggleLayout
-                            )
-                            CircleIconButton(
-                                icon = Icons.AutoMirrored.Rounded.Sort,
-                                description = strings.sort,
-                                onClick = onOpenSort
-                            )
+                            if (!railMode) {
+                                CircleIconButton(
+                                    icon = if (layout == NoteLayout.MASONRY) {
+                                        Icons.AutoMirrored.Rounded.ViewList
+                                    } else {
+                                        Icons.Rounded.GridView
+                                    },
+                                    description = strings.toggleLayout,
+                                    onClick = onToggleLayout
+                                )
+                                CircleIconButton(
+                                    icon = Icons.AutoMirrored.Rounded.Sort,
+                                    description = strings.sort,
+                                    onClick = onOpenSort
+                                )
+                            }
                         }
                     }
                 }
-                Box(modifier = Modifier.size(Space.s700), contentAlignment = Alignment.Center) {
-                    Avatar(
-                        avatarPath = avatarPath,
-                        // 與左側 48dp 圓鈕同尺寸，頂欄兩端才對稱。
-                        size = Space.s600,
-                        contentDescription = strings.profileTitle,
-                        onClick = onOpenProfile
-                    )
+                if (!railMode) {
+                    Box(
+                        modifier = Modifier.size(Space.s700),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Avatar(
+                            avatarPath = avatarPath,
+                            // 與左側 48dp 圓鈕同尺寸，頂欄兩端才對稱。
+                            size = Space.s600,
+                            contentDescription = strings.profileTitle,
+                            onClick = onOpenProfile
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(Space.s100))
@@ -804,11 +915,16 @@ private fun BookCard(
 }
 
 @Composable
-private fun LibraryEmpty(title: String, hint: String, topPadding: Dp) {
+private fun LibraryEmpty(
+    title: String,
+    hint: String,
+    topPadding: Dp,
+    startPadding: Dp = Space.s400
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = topPadding, start = Space.s400, end = Space.s400),
+            .padding(top = topPadding, start = startPadding, end = Space.s400),
         contentAlignment = Alignment.Center
     ) {
         Column(

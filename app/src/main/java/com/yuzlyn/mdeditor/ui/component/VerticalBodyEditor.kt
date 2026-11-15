@@ -504,7 +504,7 @@ fun VerticalBodyEditor(
     showLineNumbers: Boolean = true,
     /** 書寫輔助線；直排的分隔線是豎線、格子按 1em 字身對齊。 */
     writingGuide: WritingGuide = WritingGuide.NONE,
-    placeholder: String = "開始寫作 Markdown…",
+    placeholder: String = "",
     accentColor: Color = MaterialTheme.colorScheme.primary,
     variantColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {

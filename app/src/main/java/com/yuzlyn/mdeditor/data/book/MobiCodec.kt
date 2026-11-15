@@ -18,9 +18,9 @@ internal class PalmDb(private val raf: RandomAccessFile) {
         fileLength = raf.length()
         val header = ByteArray(78)
         raf.seek(0)
-        if (raf.read(header) < 78) throw BookException("檔案太小，不是完整的電子書")
+        if (raf.read(header) < 78) throw BookException(BookError.FILE_TOO_SMALL)
         recordCount = Bytes.u16(header, 76)
-        if (recordCount <= 0) throw BookException("檔案裡沒有資料記錄")
+        if (recordCount <= 0) throw BookException(BookError.CORRUPT_STRUCTURE, "no records")
         val table = ByteArray(recordCount * 8)
         raf.seek(78)
         var read = 0
@@ -29,7 +29,7 @@ internal class PalmDb(private val raf: RandomAccessFile) {
             if (n <= 0) break
             read += n
         }
-        if (read < table.size) throw BookException("檔案結構不完整（記錄表被截斷）")
+        if (read < table.size) throw BookException(BookError.CORRUPT_STRUCTURE, "record table")
         offsets = IntArray(recordCount + 1)
         for (index in 0 until recordCount) {
             offsets[index] = Bytes.u32(table, index * 8)
@@ -37,14 +37,14 @@ internal class PalmDb(private val raf: RandomAccessFile) {
         offsets[recordCount] = fileLength.toInt()
         for (index in 0 until recordCount) {
             if (offsets[index] <= 0 || offsets[index] > offsets[index + 1]) {
-                throw BookException("檔案結構不完整（記錄位移不合法）")
+                throw BookException(BookError.CORRUPT_STRUCTURE, "record offset")
             }
         }
     }
 
     @Synchronized
     fun record(index: Int): ByteArray {
-        if (index < 0 || index >= recordCount) throw BookException("記錄越界（$index / $recordCount）")
+        if (index < 0 || index >= recordCount) throw BookException(BookError.CORRUPT_STRUCTURE, "$index/$recordCount")
         val start = offsets[index].toLong()
         val end = offsets[index + 1].toLong().coerceAtMost(fileLength)
         val size = (end - start).toInt()
@@ -238,10 +238,10 @@ internal class HuffCdicDecoder(db: PalmDb, huffIndex: Int, recordCount: Int) {
     private val dictionary = mutableListOf<DictionaryEntry>()
 
     init {
-        if (huffIndex < 0 || huffIndex >= db.recordCount) throw BookException("HUFF 記錄不存在")
+        if (huffIndex < 0 || huffIndex >= db.recordCount) throw BookException(BookError.CORRUPT_STRUCTURE, "HUFF")
         val huff = db.record(huffIndex)
         if (String(huff, 0, 4, Charsets.ISO_8859_1) != "HUFF") {
-            throw BookException("HUFF 記錄損壞")
+            throw BookException(BookError.CORRUPT_STRUCTURE, "HUFF")
         }
         val offset1 = Bytes.u32(huff, 8)
         val offset2 = Bytes.u32(huff, 12)
@@ -260,7 +260,7 @@ internal class HuffCdicDecoder(db: PalmDb, huffIndex: Int, recordCount: Int) {
         for (index in 1 until recordCount) {
             val record = db.record(huffIndex + index)
             val magic = if (record.size >= 4) String(record, 0, 4, Charsets.ISO_8859_1) else ""
-            if (magic != "CDIC") throw BookException("CDIC 記錄損壞")
+            if (magic != "CDIC") throw BookException(BookError.CORRUPT_STRUCTURE, "CDIC")
             val headerLength = Bytes.u32(record, 4)
             val totalEntries = Bytes.u32(record, 8)
             val codeLength = Bytes.u32(record, 12)
@@ -351,14 +351,14 @@ internal object IndexReader {
     fun read(db: PalmDb, index: Int, charset: java.nio.charset.Charset): IndexData {
         val main = db.record(index)
         if (main.size < 56 || String(main, 0, 4, Charsets.ISO_8859_1) != "INDX") {
-            throw BookException("INDX 記錄損壞（$index）")
+            throw BookException(BookError.CORRUPT_STRUCTURE, "INDX $index")
         }
         val headerLength = Bytes.u32(main, 4)
         val numRecords = Bytes.u32(main, 24)
         val numCncx = Bytes.u32(main, 52)
 
         val tagxOffset = headerLength
-        if (tagxOffset + 12 > main.size) throw BookException("INDX 缺少 TAGX 段")
+        if (tagxOffset + 12 > main.size) throw BookException(BookError.CORRUPT_STRUCTURE, "TAGX")
         val tagxLength = Bytes.u32(main, tagxOffset + 4)
         val numControlBytes = Bytes.u32(main, tagxOffset + 8)
         val numTags = ((tagxLength - 12) / 4).coerceAtLeast(0)

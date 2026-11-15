@@ -69,7 +69,13 @@ class NoteExportManager(private val context: Context) {
      * 先把內容寫進 cache，再用 FileProvider 授權給接收的 App。
      * 直接丟 `file://` 在 Android 7 以上會被 FileUriExposedException 擋掉。
      */
-    fun share(title: String, result: ExportResult, format: NoteExportFormat) {
+    fun share(
+        title: String,
+        result: ExportResult,
+        format: NoteExportFormat,
+        /** 系統分享面板的標題；由介面按語言傳進來。 */
+        chooserTitle: String
+    ) {
         val dir = File(context.cacheDir, EXPORT_DIR).apply { mkdirs() }
         val file = File(dir, fileName(title, format))
         file.writeBytes(result.bytes)
@@ -85,7 +91,7 @@ class NoteExportManager(private val context: Context) {
             if (title.isNotBlank()) putExtra(Intent.EXTRA_SUBJECT, title)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val chooser = Intent.createChooser(send, "分享").apply {
+        val chooser = Intent.createChooser(send, chooserTitle).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(chooser)

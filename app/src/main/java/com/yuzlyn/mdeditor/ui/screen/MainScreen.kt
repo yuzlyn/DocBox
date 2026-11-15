@@ -434,11 +434,11 @@ fun MainScreen(
                         // 收起只剩一次整體淡出，看起來就跟「直接消失」沒兩樣。
                         Column(horizontalAlignment = Alignment.End) {
                             val entries = listOf(
-                                FabMenuEntry(Icons.Default.FileOpen, "導入文件") {
+                                FabMenuEntry(Icons.Default.FileOpen, strings.importDocument) {
                                     fabMenuOpen = false
                                     importLauncher.launch(ImportFormat.pickerMimeTypes)
                                 },
-                                FabMenuEntry(Icons.Default.Edit, "新筆記") {
+                                FabMenuEntry(Icons.Default.Edit, strings.newNote) {
                                     fabMenuOpen = false
                                     showNewNoteDialog = true
                                 }
@@ -1322,7 +1322,7 @@ fun NewNoteDialog(
     val strings = LocalAppStrings.current
     var title by remember { mutableStateOf("") }
     var selectedTag by remember {
-        mutableStateOf(if (existingTags.isNotEmpty()) existingTags.first() else "默認筆記本")
+        mutableStateOf(if (existingTags.isNotEmpty()) existingTags.first() else strings.defaultNotebook)
     }
     var showTagInput by remember { mutableStateOf(false) }
     var customTag by remember { mutableStateOf("") }

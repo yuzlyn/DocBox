@@ -35,6 +35,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.yuzlyn.mdeditor.data.settings.AppLanguage
 import com.yuzlyn.mdeditor.data.settings.AppSettings
 import com.yuzlyn.mdeditor.data.settings.DarkModeOption
 import com.yuzlyn.mdeditor.data.settings.HomeTarget
@@ -43,6 +44,7 @@ import com.yuzlyn.mdeditor.data.fonts.FontStore
 import com.yuzlyn.mdeditor.ui.component.Appear
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
+import com.yuzlyn.mdeditor.ui.i18n.label
 import com.yuzlyn.mdeditor.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,7 +76,7 @@ fun SettingsScreen(
     val backgroundSubtitle = when {
         settings.noteBackground.isNotBlank() ->
             settings.noteBackground.substringAfterLast('/')
-        else -> settings.background.label
+        else -> settings.background.label(strings)
     }
     // 深色模式副標題：跟隨系統時顯示實際跟隨到的深/淺狀態。
     val darkSubtitle = when (settings.darkMode) {
@@ -295,7 +297,14 @@ SegmentedListGroup(
                         SettingsRow(
                             icon = Icons.Default.Translate,
                             title = strings.language,
-                            subtitle = settings.language.nativeName,
+                            // 跟隨系統時直接寫出系統目前是哪一語，不必再點進去確認。
+                            subtitle = if (settings.language == AppLanguage.SYSTEM) {
+                                strings.languageFollowSystemHint(
+                                    AppLanguage.systemDefault().nativeName
+                                )
+                            } else {
+                                settings.language.nativeName
+                            },
                             onClick = onOpenLanguage
                         )
                     )

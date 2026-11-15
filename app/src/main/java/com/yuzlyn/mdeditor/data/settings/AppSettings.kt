@@ -6,14 +6,25 @@ import com.yuzlyn.mdeditor.data.export.CardPosition
 import java.util.Locale
 
 enum class AppLanguage(val tag: String, val nativeName: String) {
+    /**
+     * 跟隨系統：存下來的只是一個記號，真正用哪一語要等到 [resolved] 才算。
+     *
+     * 差別在於「現在用什麼」和「記住什麼」分開了——系統語言改了，這個值不動，
+     * 但顯示的語言跟著改；使用者也可以隨時挑一個固定語言，不再隨系統跑。
+     */
+    SYSTEM("system", ""),
     ZH_TW("zh-TW", "繁體中文"),
     ZH_CN("zh-CN", "简体中文"),
     EN_US("en-US", "English"),
     FR_FR("fr-FR", "Français");
 
+    /** 實際要顯示的語言。[SYSTEM] 當下換算成系統語言。 */
+    fun resolved(): AppLanguage = if (this == SYSTEM) systemDefault() else this
+
     companion object {
+        /** 沒存過或存的值不認得，就當作跟隨系統——新裝的使用者本來就該如此。 */
         fun fromTag(tag: String?): AppLanguage =
-            entries.firstOrNull { it.tag.equals(tag, ignoreCase = true) } ?: systemDefault()
+            entries.firstOrNull { it.tag.equals(tag, ignoreCase = true) } ?: SYSTEM
 
         /** 系統語言未適配時一律回落英語，與桌面顯示名稱的規則一致。 */
         fun systemDefault(): AppLanguage {
@@ -24,6 +35,9 @@ enum class AppLanguage(val tag: String, val nativeName: String) {
                 else -> EN_US
             }
         }
+
+        /** 給語言清單用：跟隨系統排最前，其餘是四個固定語種。 */
+        val selectable: List<AppLanguage> = entries.toList()
     }
 }
 
@@ -248,7 +262,8 @@ enum class NoteBackgroundInk(val id: String, val label: String) {
 }
 
 data class AppSettings(
-    val language: AppLanguage = AppLanguage.systemDefault(),
+    /** 預設跟隨系統：使用者沒挑過語言，就不該被釘在某一個語種上。 */
+    val language: AppLanguage = AppLanguage.SYSTEM,
     /** 預設改為固定種子：桌面圖標是靜態資源，跟不了壁紙色，兩者要一致只能固定取色。 */
     val themeMode: ThemeMode = ThemeMode.CUSTOM_SEED,
     val seedColor: SeedColor = SeedColor.LOTUS,

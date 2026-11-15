@@ -11,12 +11,27 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** 插入圖片的結果；失敗時帶著可以直接顯示給使用者的原因。 */
+/** 插入圖片失敗的種類；句子由介面按語言組。 */
+enum class ImageInsertError {
+    /** 筆記還沒載入完，拿不到可寫入的 Uri。 */
+    NOTE_NOT_LOADED,
+    PERMISSION_DENIED,
+    UNKNOWN,
+    /** 這篇筆記不是 SAF 文件（例如已關聯的 PDF 副本）。 */
+    NOT_WRITABLE,
+    UNSUPPORTED_FORMAT,
+    /** 建不出 `images/` 目錄。 */
+    IMAGES_DIR_FAILED,
+    CREATE_FAILED,
+    COPY_FAILED
+}
+
+/** 插入圖片的結果；失敗時帶錯誤種類，[detail] 只放技術細節。 */
 sealed interface ImageInsertResult {
     /** [markdownPath] 是相對於筆記檔案的圖片路徑，例如 `images/img_20251113_124500.jpg`。 */
     data class Success(val markdownPath: String, val alt: String) : ImageInsertResult
 
-    data class Failure(val reason: String) : ImageInsertResult
+    data class Failure(val error: ImageInsertError, val detail: String? = null) : ImageInsertResult
 }
 
 /**
@@ -36,21 +51,21 @@ class NoteAttachments(context: Context) {
                 attachImageInternal(noteUriString, source)
             } catch (e: SecurityException) {
                 Log.e(TAG, "[NoteAttachments] 讀取圖片權限不足: ${e.message}", e)
-                ImageInsertResult.Failure("插入圖片失敗：沒有讀取這張圖片的權限，請重新選擇一次")
+                ImageInsertResult.Failure(ImageInsertError.PERMISSION_DENIED)
             } catch (e: Exception) {
                 Log.e(TAG, "[NoteAttachments] 插入圖片失敗: ${e.message}", e)
-                ImageInsertResult.Failure("插入圖片失敗：${e.message ?: "未知錯誤"}")
+                ImageInsertResult.Failure(ImageInsertError.UNKNOWN, e.message)
             }
         }
 
     private fun attachImageInternal(noteUriString: String, source: Uri): ImageInsertResult {
         val noteUri = Uri.parse(noteUriString)
         val noteDocId = runCatching { DocumentsContract.getDocumentId(noteUri) }.getOrNull()
-            ?: return ImageInsertResult.Failure("插入圖片失敗：這篇筆記不是可寫入的檔案")
+            ?: return ImageInsertResult.Failure(ImageInsertError.NOT_WRITABLE)
 
         val sourceName = displayName(source) ?: "image"
         val mime = resolveMime(source, sourceName)
-            ?: return ImageInsertResult.Failure("插入圖片失敗：無法辨識這個檔案的格式")
+            ?: return ImageInsertResult.Failure(ImageInsertError.UNSUPPORTED_FORMAT)
 
         val parentId = if ('/' in noteDocId) {
             noteDocId.substringBeforeLast('/')
@@ -61,7 +76,7 @@ class NoteAttachments(context: Context) {
         }
 
         val imagesDirUri = findOrCreateImagesDir(noteUri, parentId)
-            ?: return ImageInsertResult.Failure("插入圖片失敗：無法在筆記資料夾建立 images 目錄")
+            ?: return ImageInsertResult.Failure(ImageInsertError.IMAGES_DIR_FAILED)
         val imagesDirId = runCatching { DocumentsContract.getDocumentId(imagesDirUri) }
             .getOrDefault("")
 
@@ -71,21 +86,21 @@ class NoteAttachments(context: Context) {
 
         val targetUri = runCatching {
             DocumentsContract.createDocument(resolver, imagesDirUri, mime, fileName)
-        }.getOrNull() ?: return ImageInsertResult.Failure("插入圖片失敗：無法在筆記資料夾建立檔案")
+        }.getOrNull() ?: return ImageInsertResult.Failure(ImageInsertError.CREATE_FAILED)
 
         val written = runCatching {
             val input = resolver.openInputStream(source)
-                ?: throw IllegalStateException("無法讀取所選圖片")
+                ?: throw IllegalStateException("cannot read source image")
             input.use { from ->
                 val output = resolver.openOutputStream(targetUri, "wt")
-                    ?: throw IllegalStateException("無法寫入筆記資料夾")
+                    ?: throw IllegalStateException("cannot write into note folder")
                 output.use { to -> from.copyTo(to) }
             }
         }.isSuccess
 
         if (!written) {
             runCatching { DocumentsContract.deleteDocument(resolver, targetUri) }
-            return ImageInsertResult.Failure("插入圖片失敗：複製圖片到筆記資料夾時出錯")
+            return ImageInsertResult.Failure(ImageInsertError.COPY_FAILED)
         }
 
         // provider 可能因為同名而自動改名（例如加上 " (1)"），要用實際寫入的檔名，

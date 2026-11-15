@@ -615,7 +615,7 @@ class MainActivity : ComponentActivity() {
                                     metadata = pageTransition
                                 ) {
                                     HelpScreen(
-                                        language = appSettings.language,
+                                        language = appSettings.language.resolved(),
                                         onBack = { backStack.removeLastOrNull() },
                                         onOpenAuthor = { backStack.add(Author) }
                                     )

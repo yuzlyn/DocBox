@@ -240,9 +240,15 @@ object StatsDates {
         "%02d/%02d".format(date.monthValue, date.dayOfMonth)
     }.getOrDefault(day)
 
-    /** `2026-11-15` → `11月`。 */
-    fun monthLabel(day: String): String = runCatching {
-        val date = LocalDate.parse(day)
-        "${date.monthValue}月"
-    }.getOrDefault(day)
+    /**
+     * `2026-11-15` → `11月`（中文）／`Nov`（英文）／`nov.`（法文）。
+     *
+     * 用 [java.time.format.DateTimeFormatter] 的 `MMM` 而不是自己拼「${month}月」：
+     * 這個字串會直接印在熱力圖上，語言一換就得跟著換。
+     */
+    fun monthLabel(day: String, locale: java.util.Locale = java.util.Locale.getDefault()): String =
+        runCatching {
+            val date = LocalDate.parse(day)
+            java.time.format.DateTimeFormatter.ofPattern("MMM", locale).format(date)
+        }.getOrDefault(day)
 }

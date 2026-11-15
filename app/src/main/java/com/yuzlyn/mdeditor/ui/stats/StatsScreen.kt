@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Canvas
 import com.yuzlyn.mdeditor.data.settings.AppSettings
 import com.yuzlyn.mdeditor.data.stats.StatsDates
+import java.util.Locale
 import com.yuzlyn.mdeditor.data.stats.StatsItem
 import com.yuzlyn.mdeditor.data.stats.StatsSnapshot
 import com.yuzlyn.mdeditor.data.stats.StatKind
@@ -62,6 +63,7 @@ import com.yuzlyn.mdeditor.ui.component.Appear
 import com.yuzlyn.mdeditor.ui.component.RailButton
 import com.yuzlyn.mdeditor.ui.screen.Avatar
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
+import com.yuzlyn.mdeditor.ui.i18n.locale
 import com.yuzlyn.mdeditor.ui.theme.Space
 
 /** 統計頁的時間窗。用「最近 N 天」而不是日曆週／月：跨月的那一週不會忽然少一半。 */
@@ -99,9 +101,11 @@ fun StatsScreen(
 
     val today = StatsDates.today()
     val from = StatsDates.daysAgo(range.days - 1)
+    // 月份標籤跟著介面語言走，不是跟著系統語系。
+    val monthLocale = settings.language.locale()
     val totals = remember(snapshot, from, today) { snapshot.totals(from, today) }
-    val series = remember(snapshot, from, today, range) {
-        distribution(snapshot, range, from, today)
+    val series = remember(snapshot, from, today, range, monthLocale) {
+        distribution(snapshot, range, from, today, monthLocale)
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -211,6 +215,7 @@ fun StatsScreen(
                             hint = strings.statsActivityHint,
                             less = strings.statsLess,
                             more = strings.statsMore,
+                            monthLocale = monthLocale,
                             activity = remember(snapshot, today) {
                                 snapshot.activity(StatsDates.daysAgo(364), today)
                             }
@@ -481,7 +486,8 @@ private fun distribution(
     snapshot: StatsSnapshot,
     range: StatsRange,
     from: String,
-    to: String
+    to: String,
+    locale: Locale
 ): Series {
     val activity = snapshot.activity(from, to)
     return when (range) {
@@ -504,8 +510,8 @@ private fun distribution(
             }
             Series(
                 values = months.values.toList(),
-                startLabel = StatsDates.monthLabel(from),
-                endLabel = StatsDates.monthLabel(to)
+                startLabel = StatsDates.monthLabel(from, locale),
+                endLabel = StatsDates.monthLabel(to, locale)
             )
         }
     }
@@ -575,6 +581,7 @@ private fun HeatmapCard(
     hint: String,
     less: String,
     more: String,
+    monthLocale: Locale,
     activity: Map<String, com.yuzlyn.mdeditor.data.stats.StatsDay>
 ) {
     val colors = MaterialTheme.colorScheme
@@ -612,9 +619,11 @@ private fun HeatmapCard(
 
             Row(modifier = Modifier.fillMaxWidth()) {
                 // 星期標籤只留一、三、五：七列全標在手機上會擠成一團。
+                val weekdays = LocalAppStrings.current.statsWeekdays
                 Column(modifier = Modifier.width(18.dp)) {
                     Spacer(modifier = Modifier.height(14.dp))
-                    listOf("一", "", "三", "", "五", "", "").forEach { label ->
+                    (listOf(0, 2, 4).map { weekdays.getOrNull(it).orEmpty() } + List(4) { "" })
+                        .forEach { label ->
                         Box(modifier = Modifier.height(14.dp), contentAlignment = Alignment.Center) {
                             Text(
                                 text = label,
@@ -626,7 +635,7 @@ private fun HeatmapCard(
                     }
                 }
                 Column(modifier = Modifier.horizontalScroll(scroll)) {
-                    MonthLabels(weeks)
+                    MonthLabels(weeks, monthLocale)
                     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         weeks.forEach { week ->
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -669,7 +678,7 @@ private fun HeatmapCard(
 }
 
 @Composable
-private fun MonthLabels(weeks: List<List<String>>) {
+private fun MonthLabels(weeks: List<List<String>>, locale: Locale) {
     val colors = MaterialTheme.colorScheme
     // 一格只有 11dp，直接塞進格子裡會被裁成「11」。改成在整條上**絕對定位**：
     // 月份標籤本來就只出現在月界，一年十二個，彼此至少隔四週，不會撞在一起。
@@ -683,7 +692,7 @@ private fun MonthLabels(weeks: List<List<String>>) {
             val month = week.first().substring(0, 7)
             if (month != previous) {
                 Text(
-                    text = StatsDates.monthLabel(week.first()),
+                    text = StatsDates.monthLabel(week.first(), locale),
                     style = MaterialTheme.typography.labelSmall,
                     fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.8f,
                     color = colors.onSurfaceVariant,

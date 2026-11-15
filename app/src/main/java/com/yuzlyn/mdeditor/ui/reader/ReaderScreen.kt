@@ -96,6 +96,8 @@ import com.yuzlyn.mdeditor.data.settings.AppSettings
 import com.yuzlyn.mdeditor.data.settings.AppSettingsPreferences
 import com.yuzlyn.mdeditor.ui.i18n.AppStrings
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
+import com.yuzlyn.mdeditor.ui.i18n.bookMessage
+import com.yuzlyn.mdeditor.ui.i18n.label
 import com.yuzlyn.mdeditor.data.fonts.FontStore
 import com.yuzlyn.mdeditor.ui.theme.Space
 import com.yuzlyn.mdeditor.ui.theme.noteFontFamily
@@ -129,7 +131,10 @@ fun ReaderScreen(
 ) {
     val context = LocalContext.current
     val strings = LocalAppStrings.current
-    val chinese = settings.language == AppLanguage.ZH_CN || settings.language == AppLanguage.ZH_TW
+    // 跟隨系統時 settings.language 是 SYSTEM，得先換算，否則中文書會走西文斷行。
+    val chinese = settings.language.resolved().let {
+        it == AppLanguage.ZH_CN || it == AppLanguage.ZH_TW
+    }
     val progressStore = remember { ReadingProgressStore(context) }
     // 統計計時用：只在畫面真的在前景時累加。若只開一個 while + delay，
     // 切到背景、鎖屏的時間也會被算成閱讀——睡一覺起來就「讀了八小時」。
@@ -217,8 +222,8 @@ fun ReaderScreen(
                 pendingFraction = saved.fraction
             }
         }.onFailure {
-            error = it.message?.takeIf { message -> message.isNotBlank() }
-                ?: strings.readerOpenFailed
+            // 資料層給的是錯誤碼，句子在這裡按語言組；不認得的例外用籠統那句。
+            error = it.bookMessage(strings, strings.readerOpenFailed)
         }
         opening = false
     }
@@ -936,7 +941,7 @@ private fun ThemeSwatch(
         }
         Spacer(Modifier.height(Space.s75))
         Text(
-            text = ReadingTheme.label(theme, chinese),
+            text = theme.label(LocalAppStrings.current),
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center,
             color = if (selected) MaterialTheme.colorScheme.primary

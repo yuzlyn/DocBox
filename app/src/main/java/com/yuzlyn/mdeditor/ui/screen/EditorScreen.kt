@@ -161,6 +161,8 @@ import com.yuzlyn.mdeditor.data.settings.DarkModeOption
 import com.yuzlyn.mdeditor.data.settings.NoteBackground
 import com.yuzlyn.mdeditor.data.settings.NoteBackgroundInk
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
+import com.yuzlyn.mdeditor.ui.i18n.AppStrings
+import com.yuzlyn.mdeditor.ui.i18n.imageInsertError
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.component.EditHistory
 import com.yuzlyn.mdeditor.ui.component.EditorBringIntoViewSpec
@@ -201,35 +203,72 @@ import com.yuzlyn.mdeditor.ui.component.ROW_PITCH_EM
 import com.yuzlyn.mdeditor.ui.component.buildHCellLayout
 
 private enum class FormatAction(
-    val label: String,
-    val description: String,
+    val badge: String,
     val prefix: String? = null,
     val wrap: Pair<String, String>? = null,
-    val placeholder: String = "",
     val snippet: String? = null
 ) {
-    H1("H1", "一級標題", prefix = "# "),
-    H2("H2", "二級標題", prefix = "## "),
-    H3("H3", "三級標題", prefix = "### "),
-    BOLD("B", "粗體", wrap = "**" to "**", placeholder = "粗體"),
-    ITALIC("I", "斜體", wrap = "*" to "*", placeholder = "斜體"),
-    STRIKE("S", "刪除線", wrap = "~~" to "~~", placeholder = "刪除線"),
-    HIGHLIGHT("==", "螢光筆", wrap = "==" to "==", placeholder = "標記"),
-    INLINE_CODE("<>", "行內程式碼", wrap = "`" to "`", placeholder = "code"),
-    QUOTE(">", "引用", prefix = "> "),
-    BULLET("•", "項目清單", prefix = "- "),
-    ORDERED("1.", "編號清單", prefix = "1. "),
-    TASK("☑", "代辦清單", prefix = "- [ ] "),
-    MATH("∑", "行內數學", wrap = "\u0024" to "\u0024", placeholder = "E = mc^2"),
-    MATH_BLOCK("$$", "獨立數學", snippet = "\u0024\u0024\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n\u0024\u0024")
+    H1("H1", prefix = "# "),
+    H2("H2", prefix = "## "),
+    H3("H3", prefix = "### "),
+    BOLD("B", wrap = "**" to "**"),
+    ITALIC("I", wrap = "*" to "*"),
+    STRIKE("S", wrap = "~~" to "~~"),
+    HIGHLIGHT("==", wrap = "==" to "=="),
+    INLINE_CODE("<>", wrap = "`" to "`"),
+    QUOTE(">", prefix = "> "),
+    BULLET("•", prefix = "- "),
+    ORDERED("1.", prefix = "1. "),
+    TASK("☑", prefix = "- [ ] "),
+    MATH("∑", wrap = "\u0024" to "\u0024"),
+    MATH_BLOCK("$$", snippet = "\u0024\u0024\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n\u0024\u0024")
 }
 
-private enum class InsertAction(val label: String, val icon: ImageVector, val snippet: String) {
-    IMAGE("圖片", Icons.Default.Image, ""),
-    CODE("程式碼區塊", Icons.Default.Code, "```kotlin\n// 程式碼\n```"),
-    TABLE("表格", Icons.Default.TableChart, "| 欄位 | 欄位 |\n| :--- | ---: |\n| 內容 | 內容 |"),
-    LINK("連結", Icons.Default.Link, "[文字](https://example.com)"),
-    RULE("分隔線", Icons.Default.HorizontalRule, "---")
+/** 選單上的名字。枚舉本身不帶字，換語言時不必重建一張表。 */
+private fun FormatAction.label(strings: AppStrings): String = when (this) {
+    FormatAction.H1 -> strings.editorFormatH1
+    FormatAction.H2 -> strings.editorFormatH2
+    FormatAction.H3 -> strings.editorFormatH3
+    FormatAction.BOLD -> strings.editorFormatBold
+    FormatAction.ITALIC -> strings.editorFormatItalic
+    FormatAction.STRIKE -> strings.editorFormatStrike
+    FormatAction.HIGHLIGHT -> strings.editorFormatHighlight
+    FormatAction.INLINE_CODE -> strings.editorFormatInlineCode
+    FormatAction.QUOTE -> strings.editorFormatQuote
+    FormatAction.BULLET -> strings.editorFormatBullet
+    FormatAction.ORDERED -> strings.editorFormatOrdered
+    FormatAction.TASK -> strings.editorFormatTask
+    FormatAction.MATH -> strings.editorFormatMath
+    FormatAction.MATH_BLOCK -> strings.editorFormatMathBlock
+}
+
+/** 沒選字時插進去的佔位文字，插入後會選中，直接打字就蓋掉。 */
+private fun FormatAction.placeholder(strings: AppStrings): String = when (this) {
+    FormatAction.BOLD -> strings.editorFormatBold
+    FormatAction.ITALIC -> strings.editorFormatItalic
+    FormatAction.STRIKE -> strings.editorFormatStrike
+    FormatAction.HIGHLIGHT -> strings.editorFormatHighlight
+    // 行內程式碼與數學的佔位是語法本身，不隨語言變。
+    FormatAction.INLINE_CODE -> "code"
+    FormatAction.MATH -> "E = mc^2"
+    else -> ""
+}
+
+private enum class InsertAction(val icon: ImageVector, val snippet: String) {
+    IMAGE(Icons.Default.Image, ""),
+    CODE(Icons.Default.Code, "```kotlin\n// code\n```"),
+    TABLE(Icons.Default.TableChart, "| Column | Column |\n| :--- | ---: |\n| Cell | Cell |"),
+    LINK(Icons.Default.Link, "[文字](https://example.com)"),
+    RULE(Icons.Default.HorizontalRule, "---")
+}
+
+/** 插入選單上的名字；帶進來的表格與連結範例本身是 Markdown 語法，不動。 */
+private fun InsertAction.label(strings: AppStrings): String = when (this) {
+    InsertAction.IMAGE -> strings.image
+    InsertAction.CODE -> strings.codeBlock
+    InsertAction.TABLE -> strings.table
+    InsertAction.LINK -> strings.link
+    InsertAction.RULE -> strings.divider
 }
 private enum class EditorSheet { INSERT, STYLE, FORMAT, MORE, EXPORT }
 
@@ -251,6 +290,15 @@ private val NoteExportFormat.icon: ImageVector
         NoteExportFormat.PDF -> Icons.Default.PictureAsPdf
         NoteExportFormat.IMAGE -> Icons.Default.Image
     }
+
+/** 匯出格式在選單上的名字；Markdown 是格式名本身，不翻。 */
+private fun NoteExportFormat.label(strings: AppStrings): String = when (this) {
+    NoteExportFormat.MARKDOWN -> "Markdown"
+    NoteExportFormat.TEXT -> strings.formatPlainText
+    NoteExportFormat.WORD -> strings.formatWord
+    NoteExportFormat.PDF -> strings.formatPdf
+    NoteExportFormat.IMAGE -> strings.formatImage
+}
 
 private val MathSymbols = listOf(
     "\\alpha" to "α", "\\beta" to "β", "\\theta" to "θ", "\\pi" to "π",
@@ -524,6 +572,7 @@ fun EditorScreen(
     /** 筆記背景（預設／純色／圖片）搬到設定頁，編輯器只留一個入口。 */
     onOpenNoteBackground: () -> Unit = {}
 ) {
+    val strings = LocalAppStrings.current
     val notes by viewModel.notes.collectAsState()
     val note = remember(noteId, notes) { notes.find { it.id == noteId } }
     val previewConfig by viewModel.previewConfig.collectAsState()
@@ -644,9 +693,9 @@ fun EditorScreen(
                     saveState == NoteSaveState.FAILED
             )
     val saveHintText = when {
-        showRecoveredNotice -> "已還原草稿"
-        saveState == NoteSaveState.FAILED -> "保存失敗"
-        else -> "已保存"
+        showRecoveredNotice -> strings.editorSaveRecovered
+        saveState == NoteSaveState.FAILED -> strings.editorSaveFailed
+        else -> strings.editorSaved
     }
     val saveHintColor = when {
         saveState == NoteSaveState.FAILED -> editorColors.error
@@ -721,10 +770,12 @@ fun EditorScreen(
                     withContext(Dispatchers.IO) {
                         context.contentResolver.openOutputStream(uri)?.use { out ->
                             out.write(pending.bytes)
-                        } ?: error("無法開啟檔案")
+                        } ?: error(strings.msgCannotOpenFile)
                     }
                 }.isSuccess
-                snackbarHostState.showSnackbar(if (ok) "副本已儲存" else "儲存副本失敗")
+                snackbarHostState.showSnackbar(
+                    if (ok) strings.msgCopySaved else strings.msgCopySaveFailed
+                )
             }
         }
     }
@@ -920,7 +971,7 @@ fun EditorScreen(
 
     /** 依格式產生內容，再決定是丟給系統分享，還是交給「另存新檔」。 */
     fun startExport(mode: ExportMode, format: NoteExportFormat) {
-        val title = titleValue.text.trim().ifBlank { "未命名" }
+        val title = titleValue.text.trim().ifBlank { strings.untitled }
         val attached = if (appSettings.cardEnabled) card else null
         contentScope.launch {
             val result = try {
@@ -934,17 +985,21 @@ fun EditorScreen(
                     vertical = verticalLayout
                 )
             } catch (e: Exception) {
-                snackbarHostState.showSnackbar("匯出失敗：${e.message ?: "未知錯誤"}")
+                snackbarHostState.showSnackbar(
+                    strings.msgExportFailed(e.message ?: strings.msgUnknownError)
+                )
                 return@launch
             }
             if (result.truncated) {
-                snackbarHostState.showSnackbar("內容較長，圖片只保留前段；長文建議改用 PDF")
+                snackbarHostState.showSnackbar(strings.msgImageTruncated)
             }
             if (mode == ExportMode.SHARE) {
                 try {
-                    exportManager.share(title, result, format)
+                    exportManager.share(title, result, format, strings.share)
                 } catch (e: Exception) {
-                    snackbarHostState.showSnackbar("分享失敗：${e.message ?: "沒有可用的分享目標"}")
+                    snackbarHostState.showSnackbar(
+                        strings.msgShareFailed(e.message ?: strings.msgNoShareTarget)
+                    )
                 }
             } else {
                 pendingCopy = PendingCopy(result.bytes, format.mimeType)
@@ -1045,7 +1100,9 @@ fun EditorScreen(
             when (result) {
                 is ImageInsertResult.Success -> insertImage(result.markdownPath, result.alt)
                 is ImageInsertResult.Failure -> launch {
-                    snackbarHostState.showSnackbar(result.reason)
+                    snackbarHostState.showSnackbar(
+                        strings.imageInsertError(result.error, result.detail)
+                    )
                 }
             }
         }
@@ -1075,7 +1132,7 @@ fun EditorScreen(
 
         val wrap = action.wrap
         if (wrap != null) {
-            val selected = if (end > start) text.substring(start, end) else action.placeholder
+            val selected = if (end > start) text.substring(start, end) else action.placeholder(strings)
             val insert = wrap.first + selected + wrap.second
             val newText = text.substring(0, start) + insert + text.substring(end)
             val selectionStart = (start + wrap.first.length).coerceIn(0, newText.length)
@@ -1110,7 +1167,7 @@ fun EditorScreen(
                 EditorSheet.INSERT -> {
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         Text(
-                            text = "插入",
+                            text = strings.insert,
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
@@ -1123,7 +1180,7 @@ fun EditorScreen(
                         InsertAction.entries.forEach { action ->
                             SheetAction(
                                 icon = action.icon,
-                                label = action.label,
+                                label = action.label(strings),
                                 onClick = {
                                     // 改正文會觸發長文本重新排版，放到收合動畫結束後再做。
                                     closeSheet {
@@ -1138,7 +1195,7 @@ fun EditorScreen(
                                                 // 少數精簡系統沒有相片選擇器／文件選擇器。
                                                 contentScope.launch {
                                                     snackbarHostState.showSnackbar(
-                                                        "無法開啟圖片選擇器：${error.message ?: "系統不支援"}"
+                                                        strings.msgImagePickerFailed(error.message ?: strings.msgSystemUnsupported)
                                                     )
                                                 }
                                             }
@@ -1159,7 +1216,7 @@ fun EditorScreen(
                     val strings = LocalAppStrings.current
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         Text(
-                            text = "樣式",
+                            text = strings.style,
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
@@ -1170,7 +1227,7 @@ fun EditorScreen(
                             )
                         )
                         Text(
-                            text = "背景顏色",
+                            text = strings.backgroundColor,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = Space.s300)
@@ -1251,7 +1308,7 @@ fun EditorScreen(
                             }
                         }
                         Text(
-                            text = "字體",
+                            text = strings.font,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(
@@ -1278,7 +1335,7 @@ fun EditorScreen(
                                         it.copy(noteFont = FontStore.SYSTEM)
                                     }
                                 },
-                                label = { Text("系統") }
+                                label = { Text(strings.systemFont) }
                             )
                             fontList.forEach { font ->
                                 FilterChip(
@@ -1299,7 +1356,7 @@ fun EditorScreen(
                         }
                         SheetAction(
                             icon = Icons.Default.Image,
-                            label = "背景圖片",
+                            label = strings.backgroundImage,
                             onClick = {
                                 closeSheet()
                                 onOpenNoteBackground()
@@ -1316,7 +1373,7 @@ fun EditorScreen(
                             .verticalScroll(rememberScrollState())
                     ) {
                         Text(
-                            text = "格式",
+                            text = strings.format,
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
@@ -1336,13 +1393,13 @@ fun EditorScreen(
                         ) {
                             FormatAction.entries.forEach { action ->
                                 FormatChip(
-                                    label = action.label,
+                                    label = action.label(strings),
                                     onClick = { closeSheet { applyFormat(action) } }
                                 )
                             }
                         }
                         Text(
-                            text = "數學符號",
+                            text = strings.editorMathSymbols,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(
@@ -1373,7 +1430,7 @@ fun EditorScreen(
                 EditorSheet.MORE -> {
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         Text(
-                            text = "上次編輯 $lastEdited",
+                            text = strings.lastEdited(lastEdited),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(
@@ -1395,7 +1452,7 @@ fun EditorScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "排版",
+                                text = strings.layout,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
@@ -1406,7 +1463,7 @@ fun EditorScreen(
                             ) {
                                 toggleableItem(
                                     checked = !verticalLayout,
-                                    label = "橫排",
+                                    label = strings.horizontalLayout,
                                     onCheckedChange = { checked ->
                                         if (checked) {
                                             viewModel.setNoteVertical(noteId, false)
@@ -1415,7 +1472,7 @@ fun EditorScreen(
                                 )
                                 toggleableItem(
                                     checked = verticalLayout,
-                                    label = "直排",
+                                    label = strings.verticalLayoutLabel,
                                     onCheckedChange = { checked ->
                                         if (checked) {
                                             viewModel.setNoteVertical(noteId, true)
@@ -1437,7 +1494,7 @@ fun EditorScreen(
                                 )
                         ) {
                             Text(
-                                text = "書寫輔助線",
+                                text = strings.writingGuide,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -1454,7 +1511,7 @@ fun EditorScreen(
                                     val own = note?.writingGuide
                                     toggleableItem(
                                         checked = own == WritingGuide.NONE.id,
-                                        label = "無",
+                                        label = strings.guideNone,
                                         onCheckedChange = { checked ->
                                             if (checked) {
                                                 viewModel.setNoteWritingGuide(noteId, WritingGuide.NONE)
@@ -1463,7 +1520,7 @@ fun EditorScreen(
                                 )
                                 toggleableItem(
                                     checked = own == WritingGuide.RULED.id,
-                                    label = "分隔線",
+                                    label = strings.guideRuled,
                                     onCheckedChange = { checked ->
                                         if (checked) {
                                             viewModel.setNoteWritingGuide(noteId, WritingGuide.RULED)
@@ -1472,7 +1529,7 @@ fun EditorScreen(
                                 )
                                 toggleableItem(
                                     checked = own == WritingGuide.GRID.id,
-                                    label = "作文格",
+                                    label = strings.guideGrid,
                                     onCheckedChange = { checked ->
                                         if (checked) {
                                             viewModel.setNoteWritingGuide(noteId, WritingGuide.GRID)
@@ -1481,7 +1538,7 @@ fun EditorScreen(
                                 )
                                 toggleableItem(
                                     checked = own == null,
-                                    label = "跟隨默認",
+                                    label = strings.guideFollowDefault,
                                     onCheckedChange = { checked ->
                                         if (checked) {
                                             viewModel.setNoteWritingGuide(noteId, null)
@@ -1496,24 +1553,24 @@ fun EditorScreen(
                         if (note?.sourceUri.isNullOrEmpty()) {
                             SheetAction(
                                 icon = Icons.Default.AddLink,
-                                label = "關聯原始 PDF",
+                                label = strings.editorLinkPdf,
                                 onClick = { closeSheet { openPdfPicker() } }
                             )
                         }
                         SheetAction(
                             icon = Icons.Default.Delete,
-                            label = "刪除",
+                            label = strings.delete,
                             tint = MaterialTheme.colorScheme.error,
                             onClick = { closeSheet { handleDelete() } }
                         )
                         SheetAction(
                             icon = Icons.AutoMirrored.Filled.Label,
-                            label = "標籤",
+                            label = strings.label,
                             onClick = { closeSheet() }
                         )
                         SheetAction(
                             icon = Icons.Default.Share,
-                            label = "分享",
+                            label = strings.share,
                             onClick = {
                                 exportMode = ExportMode.SHARE
                                 activeSheet = EditorSheet.EXPORT
@@ -1521,7 +1578,7 @@ fun EditorScreen(
                         )
                         SheetAction(
                             icon = Icons.Default.SaveAlt,
-                            label = "保存副本",
+                            label = strings.editorSaveCopy,
                             onClick = {
                                 exportMode = ExportMode.SAVE_COPY
                                 activeSheet = EditorSheet.EXPORT
@@ -1529,7 +1586,7 @@ fun EditorScreen(
                         )
                         SheetAction(
                             icon = Icons.Default.Search,
-                            label = "尋找",
+                            label = strings.find,
                             onClick = { closeSheet() }
                         )
                         Spacer(modifier = Modifier.size(Space.s200))
@@ -1544,7 +1601,7 @@ fun EditorScreen(
                             .verticalScroll(rememberScrollState())
                     ) {
                         Text(
-                            text = if (exportMode == ExportMode.SHARE) "分享" else "保存副本",
+                            text = if (exportMode == ExportMode.SHARE) strings.share else strings.editorSaveCopy,
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
@@ -1556,9 +1613,9 @@ fun EditorScreen(
                         )
                         Text(
                             text = if (exportMode == ExportMode.SHARE) {
-                                "選擇要分享的格式"
+                                strings.exportChooseFormat
                             } else {
-                                "選擇格式並存到指定位置，同時就是格式轉換"
+                                strings.exportHint
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1571,9 +1628,9 @@ fun EditorScreen(
                         // 圖片與 PDF 會照這篇筆記的排版方向輸出；先講清楚，省得匯出後才發現方向不對。
                         Text(
                             text = if (verticalLayout) {
-                                "圖片與 PDF 依筆記排版輸出：直排"
+                                strings.exportDirectionVertical
                             } else {
-                                "圖片與 PDF 依筆記排版輸出：橫排"
+                                strings.exportDirectionHorizontal
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
@@ -1586,7 +1643,7 @@ fun EditorScreen(
                         NoteExportFormat.entries.forEach { format ->
                             SheetAction(
                                 icon = format.icon,
-                                label = format.label,
+                                label = format.label(strings),
                                 onClick = { closeSheet { startExport(exportMode, format) } }
                             )
                         }
@@ -1642,7 +1699,7 @@ fun EditorScreen(
                 windowInsets = WindowInsets.statusBars,
                 title = {
                     if (isPreview) {
-                        Text("預覽", style = MaterialTheme.typography.titleLarge)
+                        Text(strings.preview, style = MaterialTheme.typography.titleLarge)
                     } else {
                         // 標題與保存狀態共用同一個位置：內容存好之後標題淡出、換成「已保存」；
                         // 一打字（或點一下標題）標題就淡回來。標題內容本身完全不變。
@@ -1687,7 +1744,7 @@ fun EditorScreen(
                                     Box {
                                         if (titleValue.text.isEmpty()) {
                                             Text(
-                                                text = "標題",
+                                                text = strings.titlePlaceholder,
                                                 style = MaterialTheme.typography.titleLarge,
                                                 color = editorColors.onBackgroundVariant
                                             )
@@ -1718,7 +1775,7 @@ fun EditorScreen(
                             contentColor = editorColors.onBackground
                         )
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = strings.back)
                     }
                 },
                 actions = {
@@ -1746,7 +1803,7 @@ fun EditorScreen(
                             Icon(
                                 imageVector = if (linked) Icons.Default.PictureAsPdf
                                 else Icons.Default.AddLink,
-                                contentDescription = if (linked) "開啟原始 PDF" else "關聯原始 PDF"
+                                contentDescription = if (linked) strings.editorOpenPdf else strings.editorLinkPdf
                             )
                         }
                     }
@@ -1761,7 +1818,7 @@ fun EditorScreen(
                         Icon(
                             imageVector = if (isPreview) Icons.Default.Edit
                             else Icons.Default.Visibility,
-                            contentDescription = if (isPreview) "返回編輯" else "預覽"
+                            contentDescription = if (isPreview) strings.backToEdit else strings.preview
                         )
                     }
                     if (isPreview) {
@@ -1773,7 +1830,7 @@ fun EditorScreen(
                                 contentColor = editorColors.buttonContent
                             )
                         ) {
-                            Icon(Icons.Default.Settings, contentDescription = "預覽設定")
+                            Icon(Icons.Default.Settings, contentDescription = strings.previewSettings)
                         }
                     }
                 },
@@ -1907,6 +1964,7 @@ fun EditorScreen(
                                 bottomReserve = editorBottomReserve,
                                 showLineNumbers = appSettings.showLineNumbers,
                                 writingGuide = writingGuide,
+                                placeholder = strings.bodyPlaceholder,
                                 accentColor = editorColors.accent,
                                 variantColor = editorColors.onBackgroundVariant,
                                 modifier = Modifier.fillMaxSize()
@@ -2030,7 +2088,7 @@ fun EditorScreen(
                                                     )
                                                     if (bodyFieldValue.text.isEmpty()) {
                                                         Text(
-                                                            text = "開始寫作 Markdown…",
+                                                            text = strings.bodyPlaceholder,
                                                             style = MaterialTheme.typography.bodyLarge,
                                                             color = editorColors.onBackgroundVariant
                                                         )
@@ -2072,7 +2130,7 @@ fun EditorScreen(
                                         )
                                         if (bodyFieldValue.text.isEmpty()) {
                                             Text(
-                                                text = "開始寫作 Markdown…",
+                                                text = strings.bodyPlaceholder,
                                                 style = MaterialTheme.typography.bodyLarge,
                                                 color = editorColors.onBackgroundVariant
                                             )
@@ -2095,21 +2153,21 @@ fun EditorScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(Space.s100)) {
                                 EditorToolButton(
                                     icon = Icons.Default.Add,
-                                    description = "插入",
+                                    description = strings.insert,
                                     containerColor = editorColors.buttonContainer,
                                     contentColor = editorColors.buttonContent,
                                     onClick = { openSheet(EditorSheet.INSERT) }
                                 )
                                 EditorToolButton(
                                     icon = Icons.Default.Palette,
-                                    description = "樣式",
+                                    description = strings.style,
                                     containerColor = editorColors.buttonContainer,
                                     contentColor = editorColors.buttonContent,
                                     onClick = { openSheet(EditorSheet.STYLE) }
                                 )
                                 EditorToolButton(
                                     icon = Icons.Default.FormatSize,
-                                    description = "格式",
+                                    description = strings.format,
                                     containerColor = editorColors.buttonContainer,
                                     contentColor = editorColors.buttonContent,
                                     onClick = { openSheet(EditorSheet.FORMAT) }
@@ -2135,7 +2193,7 @@ fun EditorScreen(
                                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s100)) {
                                         EditorToolButton(
                                             icon = Icons.AutoMirrored.Filled.Undo,
-                                            description = "撤銷",
+                                            description = strings.editorUndo,
                                             enabled = canUndo,
                                             containerColor = editorColors.buttonContainer,
                                             contentColor = editorColors.buttonContent,
@@ -2145,7 +2203,7 @@ fun EditorScreen(
                                         )
                                         EditorToolButton(
                                             icon = Icons.AutoMirrored.Filled.Redo,
-                                            description = "重做",
+                                            description = strings.editorRedo,
                                             enabled = canRedo,
                                             containerColor = editorColors.buttonContainer,
                                             contentColor = editorColors.buttonContent,
@@ -2157,7 +2215,7 @@ fun EditorScreen(
                                 }
                                 EditorToolButton(
                                     icon = Icons.Default.MoreVert,
-                                    description = "更多",
+                                    description = strings.more,
                                     containerColor = editorColors.buttonContainer,
                                     contentColor = editorColors.buttonContent,
                                     onClick = { openSheet(EditorSheet.MORE) }

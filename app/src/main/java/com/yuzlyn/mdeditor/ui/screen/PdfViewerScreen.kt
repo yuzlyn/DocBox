@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.ui.theme.Space
+import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.viewmodel.FileViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,6 +78,7 @@ fun PdfViewerScreen(
     onImportAsNote: (suspend (Uri) -> FileViewModel.ImportNoteResult)? = null,
     onImported: (String) -> Unit = {}
 ) {
+    val strings = LocalAppStrings.current
     val context = LocalContext.current
     val uri = remember(uriString) { Uri.parse(uriString) }
 
@@ -99,14 +101,14 @@ fun PdfViewerScreen(
         try {
             descriptor = context.contentResolver.openFileDescriptor(uri, "r")
             if (descriptor == null) {
-                error = "無法開啟這個 PDF"
+                error = strings.pdfOpenFailed
             } else {
                 val opened = PdfRenderer(descriptor)
                 renderer = opened
                 pageCount = opened.pageCount
             }
         } catch (e: Exception) {
-            error = e.message ?: "無法開啟這個 PDF"
+            error = e.message ?: strings.pdfOpenFailed
         }
         onDispose {
             // PdfRenderer.close() 會一併釋放檔案描述符，再關一次只是保險。
@@ -142,7 +144,7 @@ fun PdfViewerScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = strings.back)
                     }
                 },
                 actions = {
@@ -172,7 +174,7 @@ fun PdfViewerScreen(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Icon(Icons.Default.NoteAdd, contentDescription = "匯入為筆記")
+                                Icon(Icons.Default.NoteAdd, contentDescription = strings.pdfImportAsNote)
                             }
                         }
                     }
@@ -233,6 +235,7 @@ fun PdfViewerScreen(
 
 @Composable
 private fun PdfPage(renderer: PdfRenderer, pageIndex: Int, targetWidth: Int) {
+    val strings = LocalAppStrings.current
     val bitmap by produceState<Bitmap?>(initialValue = null, renderer, pageIndex, targetWidth) {
         value = withContext(Dispatchers.IO) {
             runCatching { renderPage(renderer, pageIndex, targetWidth) }.getOrNull()
@@ -253,7 +256,7 @@ private fun PdfPage(renderer: PdfRenderer, pageIndex: Int, targetWidth: Int) {
     } else {
         Image(
             bitmap = image.asImageBitmap(),
-            contentDescription = "第 ${pageIndex + 1} 頁",
+            contentDescription = strings.pdfPage(pageIndex + 1),
             modifier = Modifier
                 .fillMaxWidth()
                 .background(ComposeColor.White),

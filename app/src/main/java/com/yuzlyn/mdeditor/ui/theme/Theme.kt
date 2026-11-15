@@ -27,6 +27,7 @@ import com.yuzlyn.mdeditor.data.settings.DarkModeOption
 import com.yuzlyn.mdeditor.data.settings.ThemeMode
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.i18n.appStrings
+import androidx.compose.ui.platform.LocalConfiguration
 
 /** M3 Expressive 圓角（0/4/8/12/16/20/28/32/48/full），整體取較大一檔。 */
 val AppShapes = Shapes(
@@ -123,7 +124,12 @@ fun MDEditorTheme(
         }
     }
 
-    val strings = remember(settings.language) { settings.language.appStrings() }
+    // 設定裡存的可能是「跟隨系統」：那一刻才換算成實際語種，換了系統語言就跟著換。
+    // 除了語言設定，系統語系本身也要當 key——設定沒動、只是系統語言變了，畫面也得重組。
+    val systemLocale = LocalConfiguration.current.locales[0]
+    val strings = remember(settings.language, systemLocale) {
+        settings.language.resolved().appStrings()
+    }
 
     // 依 App 實際深色模式設定狀態列/導航列圖標明暗（參考 PixelPlayer 的 status bar style）。
     SideEffect {

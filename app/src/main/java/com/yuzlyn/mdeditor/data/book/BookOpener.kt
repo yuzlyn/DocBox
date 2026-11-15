@@ -34,7 +34,7 @@ object BookOpener {
                 // 檔名不可信時看檔頭；ZIP 也可能不是 EPUB。
                 when {
                     EpubBook.isZip(file) -> EpubBook.open(file)
-                    else -> throw BookException("無法辨識這個檔案的格式")
+                    else -> throw BookException(BookError.UNKNOWN_FORMAT)
                 }
             }
         }
@@ -76,10 +76,10 @@ object BookOpener {
     /** 取得可隨機讀取的本地檔案；已經在檔案系統上就原樣回傳。 */
     private fun materialize(context: Context, uri: Uri, name: String?): File {
         if (uri.scheme == "file") {
-            val path = uri.path ?: throw BookException("檔案路徑無效")
+            val path = uri.path ?: throw BookException(BookError.INVALID_PATH)
             val file = File(path)
             if (file.isFile) return file
-            throw BookException("找不到這個檔案")
+            throw BookException(BookError.FILE_NOT_FOUND)
         }
         val dir = File(context.cacheDir, CACHE_DIR).apply { mkdirs() }
         val extension = name?.substringAfterLast('.', "")?.lowercase(java.util.Locale.ROOT)
@@ -93,7 +93,7 @@ object BookOpener {
 
         val temporary = File(dir, target.name + ".part")
         val source = context.contentResolver.openInputStream(uri)
-            ?: throw BookException("讀不到這個檔案（授權可能已失效）")
+            ?: throw BookException(BookError.FILE_UNREADABLE)
         source.use { input ->
             temporary.outputStream().use { output ->
                 val buffer = ByteArray(64 * 1024)
@@ -106,7 +106,7 @@ object BookOpener {
         }
         if (temporary.length() == 0L) {
             temporary.delete()
-            throw BookException("這個檔案是空的")
+            throw BookException(BookError.FILE_EMPTY)
         }
         if (target.isFile) target.delete()
         if (!temporary.renameTo(target)) {

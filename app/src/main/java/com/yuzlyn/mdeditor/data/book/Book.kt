@@ -31,8 +31,56 @@ class ChapterContent(
 /** 一包資源（圖片、CSS、字型）。 */
 class BookResource(val bytes: ByteArray, val mime: String)
 
-/** 解析或開啟書籍失敗；訊息直接顯示給使用者。 */
-class BookException(message: String, cause: Throwable? = null) : Exception(message, cause)
+/**
+ * 開書失敗的種類。
+ *
+ * 資料層只負責說「哪一種錯」，句子交給介面按語言組——以前這裡直接塞中文，
+ * 切成英文法文時閱讀器就跳出一句中文，看起來像沒翻譯完。
+ */
+enum class BookError {
+    /** 檔名與檔頭都認不出來。 */
+    UNKNOWN_FORMAT,
+    INVALID_PATH,
+    FILE_NOT_FOUND,
+    /** 開得了但讀不到，多半是授權失效。 */
+    FILE_UNREADABLE,
+    FILE_EMPTY,
+    FILE_TOO_SMALL,
+    NOT_EPUB,
+    NOT_MOBI,
+    NOT_FB2,
+    /** EPUB 的 container.xml 沒指定 OPF。 */
+    EPUB_NO_ROOTFILE,
+    EPUB_OPF_UNREADABLE,
+    /** 解析成功但沒有可讀章節。 */
+    NO_CONTENT,
+    CHAPTER_NOT_FOUND,
+    CHAPTER_UNREADABLE,
+    DRM_PROTECTED,
+    /** 記錄表、索引、壓縮表彼此對不上，通常是檔案下載不完整或被改過。 */
+    CORRUPT_STRUCTURE,
+    UNSUPPORTED_COMPRESSION,
+    PARSE_FAILED,
+    OPEN_FAILED
+}
+
+/**
+ * 解析或開啟書籍失敗。
+ *
+ * [detail] 只放語言中立的技術細節（路徑、章節序號、壓縮編號），
+ * 介面會把它放在括號裡接在譯文後面；不要往這裡塞句子。
+ */
+class BookException(
+    val error: BookError,
+    val detail: String? = null,
+    cause: Throwable? = null
+) : Exception(
+    buildString {
+        append(error.name)
+        if (detail != null) append(" (").append(detail).append(')')
+    },
+    cause
+)
 
 /**
  * 一本可以讀的書。

@@ -32,19 +32,19 @@ class EpubBook private constructor(
 
     private val opfPath: String = run {
         val container = readText("META-INF/container.xml")
-            ?: throw BookException("這個檔案不是 EPUB：缺少 META-INF/container.xml")
+            ?: throw BookException(BookError.NOT_EPUB, "META-INF/container.xml")
         val rootfile = Regex("""(?is)<rootfile\b[^>]*>""").find(container)?.value
-            ?: throw BookException("EPUB 的 container.xml 沒有指定內容清單")
+            ?: throw BookException(BookError.EPUB_NO_ROOTFILE)
         normalize(
             Xml.attr(rootfile, "full-path")
-                ?: throw BookException("EPUB 的 container.xml 沒有指定內容清單")
+                ?: throw BookException(BookError.EPUB_NO_ROOTFILE)
         )
     }
 
     private val opfDir: String = opfPath.substringBeforeLast('/', "")
 
     private val opf: String = readText(opfPath)
-        ?: throw BookException("EPUB 的內容清單（$opfPath）讀不出來")
+        ?: throw BookException(BookError.EPUB_OPF_UNREADABLE, opfPath)
 
     /** manifest：id → 項目。 */
     private val manifest = linkedMapOf<String, ManifestItem>()
@@ -65,7 +65,7 @@ class EpubBook private constructor(
     init {
         parseManifest()
         parseSpine()
-        if (spine.isEmpty()) throw BookException("這本 EPUB 沒有可讀的章節")
+        if (spine.isEmpty()) throw BookException(BookError.NO_CONTENT)
         chapterIndex = spine.withIndex().associate { (index, item) -> item.path to index }
         metadata = parseMetadata()
         readingDirection = parseDirection()
@@ -74,8 +74,8 @@ class EpubBook private constructor(
     }
 
     override suspend fun readChapter(index: Int): ChapterContent {
-        val item = spine.getOrNull(index) ?: throw BookException("章節不存在（$index）")
-        val bytes = read(item.path) ?: throw BookException("章節檔案讀不出來：${item.path}")
+        val item = spine.getOrNull(index) ?: throw BookException(BookError.CHAPTER_NOT_FOUND, index.toString())
+        val bytes = read(item.path) ?: throw BookException(BookError.CHAPTER_UNREADABLE, item.path)
         return ChapterContent(Xml.decode(bytes), item.path.substringBeforeLast('/', ""))
     }
 
@@ -301,14 +301,14 @@ class EpubBook private constructor(
             val zip = try {
                 ZipFile(file)
             } catch (e: Exception) {
-                throw BookException("這個檔案不是有效的 EPUB：${e.message ?: "無法解壓"}", e)
+                throw BookException(BookError.PARSE_FAILED, e.message, e)
             }
             return try {
                 EpubBook(file, zip)
             } catch (e: Throwable) {
                 runCatching { zip.close() }
                 if (e is BookException) throw e
-                throw BookException("EPUB 解析失敗：${e.message ?: "未知錯誤"}", e)
+                throw BookException(BookError.PARSE_FAILED, e.message, e)
             }
         }
     }

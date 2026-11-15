@@ -57,14 +57,14 @@ class MobiBook private constructor(
 
     init {
         val record0 = db.record(0)
-        if (record0.size < 132) throw BookException("檔案太小，不是完整的 MOBI 檔")
+        if (record0.size < 132) throw BookException(BookError.FILE_TOO_SMALL)
         compression = Bytes.u16(record0, 0)
         textRecordCount = Bytes.u16(record0, 8)
         val encryption = Bytes.u16(record0, 12)
         if (encryption != 0) {
-            throw BookException("這本書有 DRM 保護，無法開啟")
+            throw BookException(BookError.DRM_PROTECTED)
         }
-        if (textRecordCount <= 0) throw BookException("檔案裡沒有可讀取的內文")
+        if (textRecordCount <= 0) throw BookException(BookError.NO_CONTENT)
 
         charset = charsetOf(Bytes.u32(record0, 28))
         resourceStart = Bytes.u32(record0, 108)
@@ -97,15 +97,15 @@ class MobiBook private constructor(
         kf8Skel = if (isKf8) Bytes.u32(kf8Record0, 252) else -1
 
         if (textRecordCount + start >= db.recordCount) {
-            throw BookException("檔案結構不完整（文字記錄數超出範圍）")
+            throw BookException(BookError.CORRUPT_STRUCTURE, "text records")
         }
         when (compression) {
             1, 2 -> Unit
             17480 -> if (huffIndex <= 0 || huffCount <= 0) {
-                throw BookException("HUFF/CDIC 壓縮的索引缺失，檔案可能損毀")
+                throw BookException(BookError.CORRUPT_STRUCTURE, "HUFF/CDIC")
             }
 
-            else -> throw BookException("不支援的壓縮方式（$compression）")
+            else -> throw BookException(BookError.UNSUPPORTED_COMPRESSION, compression.toString())
         }
 
         if (isKf8) {
@@ -116,7 +116,7 @@ class MobiBook private constructor(
             sections = buildMobi6Sections()
             fidToChapter = emptyMap()
         }
-        if (sections.isEmpty()) throw BookException("這本書取不到任何章節")
+        if (sections.isEmpty()) throw BookException(BookError.NO_CONTENT)
 
         metadata = BookMetadata(
             title = exthString(503) ?: fullName ?: file.nameWithoutExtension,
@@ -133,7 +133,7 @@ class MobiBook private constructor(
     // ------------------------------------------------------------------ 讀取
 
     override suspend fun readChapter(index: Int): ChapterContent {
-        val section = sections.getOrNull(index) ?: throw BookException("章節不存在（$index）")
+        val section = sections.getOrNull(index) ?: throw BookException(BookError.CHAPTER_NOT_FOUND, index.toString())
         val html = readSection(section)
         return ChapterContent(if (isKf8) html else normalizeMobi6(html), "")
     }
@@ -333,7 +333,7 @@ class MobiBook private constructor(
      */
     private fun buildKf8Sections(): Pair<List<Section>, Map<Int, Int>> {
         if (kf8Skel <= 0 || kf8Skel >= db.recordCount) {
-            throw BookException("KF8 缺少骨架索引，檔案可能損毀")
+            throw BookException(BookError.CORRUPT_STRUCTURE, "KF8 skeleton")
         }
         runCatching {
             val fdst = db.record(kf8Fdst)
@@ -418,7 +418,8 @@ class MobiBook private constructor(
     }
 
     private fun fallbackToc(): List<TocEntry> = sections.map {
-        TocEntry(title = "第 ${it.index + 1} 節", chapter = it.index)
+        // 標題留空，交由介面按語言補（「第 N 節」只在中文成立）。
+        TocEntry(title = "", chapter = it.index)
     }
 
     // ------------------------------------------------------------------ 資源
@@ -585,21 +586,21 @@ class MobiBook private constructor(
             val raf = try {
                 RandomAccessFile(file, "r")
             } catch (e: Exception) {
-                throw BookException("無法開啟檔案：${e.message ?: "未知錯誤"}", e)
+                throw BookException(BookError.OPEN_FAILED, e.message, e)
             }
             val db = try {
                 PalmDb(raf)
             } catch (e: Throwable) {
                 runCatching { raf.close() }
                 if (e is BookException) throw e
-                throw BookException("檔案不是有效的 MOBI／AZW3", e)
+                throw BookException(BookError.NOT_MOBI, cause = e)
             }
             return try {
                 MobiBook(file, db)
             } catch (e: Throwable) {
                 db.close()
                 if (e is BookException) throw e
-                throw BookException("AZW3 解析失敗：${e.message ?: "未知錯誤"}", e)
+                throw BookException(BookError.PARSE_FAILED, e.message, e)
             }
         }
     }

@@ -30,7 +30,8 @@ const val AUTHOR_GITHUB_URL = "https://github.com/yuzlyn"
 const val AUTHOR_GITHUB_USER = "yuzlyn"
 const val AUTHOR_EMAIL = "cebrayu@qq.com"
 
-fun AppLanguage.helpDoc(): HelpDoc = when (this) {
+fun AppLanguage.helpDoc(): HelpDoc = when (this.resolved()) {
+    AppLanguage.SYSTEM -> ZhTwHelp
     AppLanguage.ZH_TW -> ZhTwHelp
     AppLanguage.ZH_CN -> ZhCnHelp
     AppLanguage.EN_US -> EnUsHelp
@@ -49,6 +50,8 @@ private val ZhTwHelp = HelpDoc(
                 "自動保存：停止輸入約一秒就寫回 .md 檔，切到背景或強制關閉也不會掉內容；異常退出後重開會還原草稿。",
                 "橫排／直排：直排為由上而下、由右而左的直書，可顯示行號。",
                 "Material 3 Expressive 介面：Monet 取色、深色模式、卡片形狀與字體。",
+                "語言預設跟隨系統：改系統語言時整個介面跟著換，也可以在「設定 → 語言」固定成繁中／簡中／英文／法文。",
+                "平板與橫屏自動換成左側欄：筆記頁與書庫同一套排列，選單、換版面、排序與頭像都收進左邊那一條。",
                 "筆記本標籤、全文搜尋、批次刪除、匯出與分享。",
                 "匯入 Word／PDF／EPUB／HTML／Markdown／純文字：自動判斷格式，各自用對應的方式解析，卡片上會標示來源。",
                 "書庫與閱讀器：匯入 EPUB／MOBI／FB2 後用原生閱讀器讀，直排橫排、翻頁或滾動、字級行距留白與莫奈紙色都可調。",
@@ -101,6 +104,8 @@ private val ZhCnHelp = HelpDoc(
                 "自动保存：停止输入约一秒就写回 .md 文件，切到后台或强制关闭也不会丢内容；异常退出后重开会还原草稿。",
                 "横排／竖排：竖排为从上到下、从右到左的直书，可显示行号。",
                 "Material 3 Expressive 界面：Monet 取色、深色模式、卡片形状与字体。",
+                "语言默认跟随系统：改系统语言时整个界面跟着换，也可以在「设置 → 语言」固定为繁中／简中／英文／法文。",
+                "平板与横屏自动换成左侧栏：笔记页与书库同一套排列，菜单、换布局、排序与头像都收进左边那一条。",
                 "笔记本标签、全文搜索、批量删除、导出与分享。",
                 "导入 Word／PDF／EPUB／HTML／Markdown／纯文本：自动识别格式，各自用对应的方式解析，卡片上会标注来源。",
                 "书库与阅读器：导入 EPUB／MOBI／FB2 后用原生阅读器读，横排竖排、翻页或滚动、字号行距留白与莫奈纸色都可调。",
@@ -153,6 +158,8 @@ private val EnUsHelp = HelpDoc(
                 "Auto-save: writes back to the .md file about a second after you stop typing, flushes when the app goes to the background, and restores the draft if the app is killed.",
                 "Horizontal and vertical layout — vertical reads top-to-bottom, right-to-left, with optional line numbers.",
                 "Material 3 Expressive UI: Monet colors, dark mode, card shapes and fonts.",
+                "The language follows your system by default; Settings → Language pins it to Traditional Chinese, Simplified Chinese, English or French.",
+                "Tablets and landscape switch to a left rail, shared by the notes page and the library — menu, layout, sort and avatar all move into that strip.",
                 "Notebook tags, full-text search, batch delete, export and share.",
                 "Import Word, PDF, EPUB, HTML, Markdown or plain text — the format is detected and parsed accordingly, and the card shows where it came from.",
                 "Library and reader: import EPUB, MOBI or FB2 and read it natively — vertical or horizontal, paged or scrolling, with your own type size, line height, margins and Monet paper.",
@@ -205,6 +212,8 @@ private val FrFrHelp = HelpDoc(
                 "Enregistrement automatique : écriture dans le fichier .md une seconde après la dernière frappe, sauvegarde en arrière-plan et restauration du brouillon si l'application est tuée.",
                 "Mise en page horizontale ou verticale — la verticale se lit de haut en bas et de droite à gauche, numéros de ligne en option.",
                 "Interface Material 3 Expressive : couleurs Monet, mode sombre, formes de carte et polices.",
+                "La langue suit le système par défaut ; Réglages → Langue permet de la fixer en chinois traditionnel, chinois simplifié, anglais ou français.",
+                "Sur tablette et en paysage, l'interface passe en rail latéral, partagé par les notes et la bibliothèque : menu, disposition, tri et avatar y déménagent.",
                 "Étiquettes de carnet, recherche plein texte, suppression par lot, export et partage.",
                 "Importez Word, PDF, EPUB, HTML, Markdown ou texte brut : le format est détecté, analysé comme il faut, et la carte indique son origine.",
                 "Bibliothèque et lecteur : importez EPUB, MOBI ou FB2 et lisez-les nativement — vertical ou horizontal, page ou défilement, avec vos tailles, interlignes, marges et papier Monet.",

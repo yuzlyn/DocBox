@@ -126,7 +126,8 @@ class BookLibrary(context: Context) {
                         ShelfFolder(
                             id = item.optString("id", treeUri),
                             treeUri = treeUri,
-                            name = item.optString("name", "").ifBlank { "資料夾" },
+                            // 名稱可能真的空白（舊資料）；怎麼顯示由介面決定，資料層不寫死語言。
+                            name = item.optString("name", ""),
                             addedAt = item.optLong("addedAt", 0L),
                             lastScanAt = item.optLong("lastScanAt", 0L)
                         )
@@ -153,12 +154,16 @@ class BookLibrary(context: Context) {
      * 授權一定要在這裡取：`OpenDocumentTree` 給的是臨時授權，不 `take` 的話
      * 程序一重啟就讀不到了——那正是「資料夾存不住」的原因。
      */
-    suspend fun addFolder(treeUri: Uri): ShelfFolder = withContext(Dispatchers.IO) {
+    suspend fun addFolder(
+        treeUri: Uri,
+        /** 拿不到資料夾名稱時用的名字；由介面按語言傳進來。 */
+        fallbackName: String = ""
+    ): ShelfFolder = withContext(Dispatchers.IO) {
         persistPermission(treeUri)
         val document = DocumentFile.fromTreeUri(appContext, treeUri)
         val name = document?.name?.takeIf { it.isNotBlank() }
             ?: treeUri.lastPathSegment?.substringAfterLast(':')?.takeIf { it.isNotBlank() }
-            ?: "資料夾"
+            ?: fallbackName
         val folder = ShelfFolder(
             id = digest(treeUri.toString()),
             treeUri = treeUri.toString(),
@@ -248,11 +253,13 @@ class BookLibrary(context: Context) {
     suspend fun import(
         uri: Uri,
         displayName: String? = null,
-        folderId: String? = null
+        folderId: String? = null,
+        /** 檔案連顯示名稱都問不到時用的名字；由介面按語言傳進來。 */
+        fallbackName: String = "untitled.epub"
     ): ShelfBook = withContext(Dispatchers.IO) {
         val raw = displayName?.takeIf { it.isNotBlank() }
             ?: queryDisplayName(uri)
-            ?: "未命名.epub"
+            ?: fallbackName
         val name = sanitize(raw)
         if (folderId == null) {
             // 使用者主動匯入，代表他要這本書：把之前「已刪除」的記號清掉。
@@ -277,13 +284,13 @@ class BookLibrary(context: Context) {
 
         val target = uniqueFile(name)
         val input = appContext.contentResolver.openInputStream(uri)
-            ?: throw BookException("讀不到這個檔案（授權可能已失效）")
+            ?: throw BookException(BookError.FILE_UNREADABLE)
         input.use { source ->
             target.outputStream().use { sink -> source.copyTo(sink, 64 * 1024) }
         }
         if (target.length() <= 0L) {
             target.delete()
-            throw BookException("這個檔案是空的")
+            throw BookException(BookError.FILE_EMPTY)
         }
         register(target, name, folderId)
     }

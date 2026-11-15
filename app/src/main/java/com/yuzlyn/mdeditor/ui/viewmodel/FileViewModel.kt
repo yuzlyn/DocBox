@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.yuzlyn.mdeditor.data.ImageInsertError
 import com.yuzlyn.mdeditor.data.ImageInsertResult
 import com.yuzlyn.mdeditor.data.NoteAutoSaver
 import com.yuzlyn.mdeditor.data.NoteModel
@@ -32,6 +33,9 @@ import com.yuzlyn.mdeditor.data.settings.HomeTarget
 import com.yuzlyn.mdeditor.data.stats.StatKind
 import com.yuzlyn.mdeditor.data.stats.StatsSnapshot
 import com.yuzlyn.mdeditor.data.stats.StatsStore
+import com.yuzlyn.mdeditor.ui.i18n.AppStrings
+import com.yuzlyn.mdeditor.ui.i18n.appStrings
+import com.yuzlyn.mdeditor.ui.i18n.importError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -59,6 +63,10 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
     private val appSettingsPreferences = AppSettingsPreferences(application)
     private val profilePreferences = ProfilePreferences(application)
     private val statsStore = StatsStore(application)
+
+    /** 提示訊息要用當下的介面語言：語言改了，下一個訊息就換。 */
+    private val strings: AppStrings
+        get() = appSettings.value.language.appStrings()
 
     /**
      * 閱讀與編輯的統計。統計頁直接吃這一份；關掉總開關時它就不再長大，
@@ -324,7 +332,9 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
         val displayName = queryDisplayName(source)
         val parsed = DocumentImporter.import(getApplication(), source, displayName)
         return when (parsed) {
-            is ImportResult.Failure -> ImportNoteResult.Failure(parsed.reason)
+            is ImportResult.Failure -> ImportNoteResult.Failure(
+                strings.importError(parsed.error, parsed.detail)
+            )
             is ImportResult.Success -> {
                 // PDF 之後要能在編輯頁頂欄重新打開，所以先要一份常駐讀取權限。
                 // 拿不到就別記 Uri：否則頂欄會出現一顆按了必然失敗的按鈕。
@@ -354,16 +364,16 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
         sourceUri: String = ""
     ): ImportNoteResult {
         val treeUri = settings.treeUriOnce()
-            ?: return ImportNoteResult.Failure("尚未選擇資料夾，無法建立筆記")
+            ?: return ImportNoteResult.Failure(strings.msgNoFolder)
         val note = withContext(Dispatchers.IO) {
             safDataSource.createNote(
                 Uri.parse(treeUri),
                 titleFor(displayName, content),
                 SafNoteDataSource.DEFAULT_TAG
             )
-        } ?: return ImportNoteResult.Failure("無法在資料夾裡建立筆記")
+        } ?: return ImportNoteResult.Failure(strings.msgCannotCreateNote)
         if (!safDataSource.writeContent(note.uriString, content)) {
-            return ImportNoteResult.Failure("內容寫入失敗，請確認資料夾權限")
+            return ImportNoteResult.Failure(strings.msgWriteFailed)
         }
         repository.insert(
             note.copy(
@@ -396,7 +406,7 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
             ?.removePrefix("# ")
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-            ?: "匯入的文件"
+            ?: strings.defaultImportTitle
     }
 
     /**
@@ -408,7 +418,7 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
             val note = repository.getNote(noteId)
             if (note == null) {
                 _imageInsert.emit(
-                    ImageInsertResult.Failure("插入圖片失敗：這篇筆記還沒載入完成，請稍後再試")
+                    ImageInsertResult.Failure(ImageInsertError.NOTE_NOT_LOADED)
                 )
                 return@launch
             }
@@ -437,18 +447,18 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }.isSuccess
             if (!granted) {
-                _sourceLinkMessage.emit("這個位置不支援長期授權，請換一個資料夾再試一次")
+                _sourceLinkMessage.emit(strings.msgNoPersistablePermission)
                 return@launch
             }
             val readable = runCatching {
                 resolver.openInputStream(source)?.use { it.read() } != null
             }.getOrDefault(false)
             if (!readable) {
-                _sourceLinkMessage.emit("讀不到這個檔案")
+                _sourceLinkMessage.emit(strings.msgCannotReadFile)
                 return@launch
             }
             repository.setSourceDocument(noteId, ImportFormat.PDF.id, source.toString())
-            _sourceLinkMessage.emit("已關聯原始 PDF")
+            _sourceLinkMessage.emit(strings.msgPdfLinked)
         }
     }
 

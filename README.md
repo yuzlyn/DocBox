@@ -53,7 +53,8 @@ Notes are plain `.md` files inside a folder you pick through the system folder p
 - Material 3 Expressive: Monet dynamic colour from the wallpaper, custom seed colours, dark mode, card shapes and bundled fonts.
 - Import your own `.ttf` / `.otf` fonts and set a default for the editor and for the reader separately. Imported fonts can be deleted again.
 - Note background: Monet, a solid colour, or your own image (several can be imported). Text on an image can be forced dark or light.
-- Four languages: 繁體中文, 简体中文, English, Français, switchable at runtime.
+- Four languages: 繁體中文, 简体中文, English, Français. Switch at runtime, or leave it on *Follow system* so the app matches whatever the device is set to. Every screen is covered, including error messages.
+- On tablets and foldables the library switches to a side rail from 840dp wide: an 80dp navigation rail, a top bar that keeps only the search field, and a card grid that sizes its columns instead of stretching them.
 - One set of Material 3 Expressive transitions across screens, with content appearing in sequence.
 
 ## Install

@@ -99,11 +99,28 @@ enum class ImportFormat(
     }
 }
 
-/** 匯入結果：成功帶文字與來源格式，失敗帶可以直接給使用者看的原因。 */
+/** 匯入失敗的種類；句子由介面按語言組，資料層不寫中文。 */
+enum class ImportError {
+    FILE_UNREADABLE,
+    /** 認出是 PDF 但沒有副檔名，走不到位元組級的解析。 */
+    PDF_NO_EXTENSION,
+    WORD_UNREADABLE,
+    EMPTY,
+    HTML_NO_TEXT,
+    /** 電子書請走閱讀器，不轉成筆記。 */
+    EBOOK_USE_READER,
+    UNSUPPORTED,
+    PDF_UNREADABLE,
+    /** 掃描檔沒有文字層。 */
+    PDF_NO_TEXT_LAYER,
+    PDF_PARSE_FAILED
+}
+
+/** 匯入結果：成功帶文字與來源格式；失敗帶錯誤種類，[detail] 只放技術細節。 */
 sealed interface ImportResult {
     data class Success(val text: String, val format: ImportFormat? = null) : ImportResult
 
-    data class Failure(val reason: String) : ImportResult
+    data class Failure(val error: ImportError, val detail: String? = null) : ImportResult
 }
 
 /**
@@ -136,12 +153,12 @@ object DocumentImporter {
             }
 
             val bytes = readBytes(context, uri)
-                ?: return@withContext ImportResult.Failure("讀不到這個檔案")
+                ?: return@withContext ImportResult.Failure(ImportError.FILE_UNREADABLE)
 
             // 沒有副檔名（或認不得）：看檔頭。
             val format = byName ?: detect(bytes)
             if (format == ImportFormat.PDF) {
-                return@withContext ImportResult.Failure("這個 PDF 沒有副檔名，請確認檔案完整後再試一次")
+                return@withContext ImportResult.Failure(ImportError.PDF_NO_EXTENSION)
             }
             importBytes(bytes, format)
         }
@@ -150,12 +167,12 @@ object DocumentImporter {
         when (format) {
             ImportFormat.DOCX -> DocxReader.toMarkdown(bytes)
                 ?.let { ImportResult.Success(it, ImportFormat.DOCX) }
-                ?: ImportResult.Failure("這個檔案不是可讀取的 Word（.docx）文件")
+                ?: ImportResult.Failure(ImportError.WORD_UNREADABLE)
 
             ImportFormat.MARKDOWN, ImportFormat.TEXT -> {
                 val text = decodeText(bytes)
                 if (text.isBlank()) {
-                    ImportResult.Failure("這個檔案沒有內容")
+                    ImportResult.Failure(ImportError.EMPTY)
                 } else {
                     ImportResult.Success(text, format)
                 }
@@ -164,7 +181,7 @@ object DocumentImporter {
             ImportFormat.HTML -> {
                 val markdown = HtmlReader.toMarkdown(decodeText(bytes))
                 if (markdown.isBlank()) {
-                    ImportResult.Failure("這個 HTML 沒有可匯入的文字內容")
+                    ImportResult.Failure(ImportError.HTML_NO_TEXT)
                 } else {
                     ImportResult.Success(markdown, ImportFormat.HTML)
                 }
@@ -174,19 +191,19 @@ object DocumentImporter {
                 // 電子書走原生閱讀（
                 // UiViewModel.openDocument → ReaderScreen），不拆成 Markdown。
                 // 這裡只是兜底：真的走到這一步就直說，不要吐一份殘缺的純文字。
-                ImportResult.Failure("這是電子書，請直接開啟閱讀（不再轉成筆記）")
+                ImportResult.Failure(ImportError.EBOOK_USE_READER)
 
             // 認不出格式就當純文字；真的有 binary 內容會是空白，這裡會給明確訊息。
             null -> {
                 val text = decodeText(bytes)
                 if (text.isBlank()) {
-                    ImportResult.Failure("不支援這個檔案格式")
+                    ImportResult.Failure(ImportError.UNSUPPORTED)
                 } else {
                     ImportResult.Success(text, ImportFormat.TEXT)
                 }
             }
 
-            ImportFormat.PDF -> ImportResult.Failure("這個 PDF 無法直接讀取，請確認檔案完整")
+            ImportFormat.PDF -> ImportResult.Failure(ImportError.PDF_UNREADABLE)
         }
 
     private fun readBytes(context: Context, uri: Uri): ByteArray? = runCatching {
@@ -280,7 +297,7 @@ object PdfTextExtractor {
             resourceReady = true
         }
         val stream = context.contentResolver.openInputStream(uri)
-            ?: return ImportResult.Failure("讀不到這個 PDF")
+            ?: return ImportResult.Failure(ImportError.PDF_UNREADABLE)
         stream.use {
             PDDocument.load(it).use { document ->
                 val text = PDFTextStripper().getText(document)
@@ -288,20 +305,20 @@ object PdfTextExtractor {
                     .replace(Regex("""\n{3,}"""), "\n\n")
                     .trim()
                 return if (text.isBlank()) {
-                    ImportResult.Failure("這個 PDF 沒有文字層（多半是掃描檔），無法匯入文字")
+                    ImportResult.Failure(ImportError.PDF_NO_TEXT_LAYER)
                 } else {
                     ImportResult.Success(text)
                 }
             }
         }
-    }.getOrElse { ImportResult.Failure("解析 PDF 失敗：${it.message ?: "未知錯誤"}") }
+    }.getOrElse { ImportResult.Failure(ImportError.PDF_PARSE_FAILED, it.message) }
 
     @RequiresApi(35)
     private fun extractOnModernAndroid(context: Context, uri: Uri): ImportResult {
         var descriptor: ParcelFileDescriptor? = null
         return try {
             descriptor = context.contentResolver.openFileDescriptor(uri, "r")
-                ?: return ImportResult.Failure("讀不到這個 PDF")
+                ?: return ImportResult.Failure(ImportError.PDF_UNREADABLE)
             val renderer = PdfRenderer(descriptor)
             try {
                 val builder = StringBuilder()
@@ -319,7 +336,7 @@ object PdfTextExtractor {
                 }
                 val text = builder.toString().trim()
                 if (text.isBlank()) {
-                    ImportResult.Failure("這個 PDF 沒有文字層（多半是掃描檔），無法匯入文字")
+                    ImportResult.Failure(ImportError.PDF_NO_TEXT_LAYER)
                 } else {
                     ImportResult.Success(text)
                 }
@@ -327,7 +344,7 @@ object PdfTextExtractor {
                 renderer.close()
             }
         } catch (e: Exception) {
-            ImportResult.Failure("解析 PDF 失敗：${e.message ?: "未知錯誤"}")
+            ImportResult.Failure(ImportError.PDF_PARSE_FAILED, e.message)
         } finally {
             runCatching { descriptor?.close() }
         }

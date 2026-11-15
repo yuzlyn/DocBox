@@ -381,13 +381,28 @@ fun LanguageSettingsScreen(
     val strings = LocalAppStrings.current
     SettingsDetailScaffold(title = strings.language, onBack = onBack) {
         DetailSection(strings.language) {
-            AppLanguage.entries.forEach { language ->
+            // 第一列是「跟隨系統」，底下用小字說明系統現在是哪一語——
+            // 不然切到這一項之後清單上沒有任何一列被勾，看起來像設定壞了。
+            AppLanguage.selectable.forEach { language ->
                 val selected = settings.language == language
                 SettingsRadioRow(
                     selected = selected,
                     onClick = { onChange(settings.copy(language = language)) }
                 ) {
-                    RadioLabel(language.nativeName, selected)
+                    if (language == AppLanguage.SYSTEM) {
+                        Column {
+                            RadioLabel(strings.languageFollowSystem, selected)
+                            Text(
+                                text = strings.languageFollowSystemHint(
+                                    AppLanguage.systemDefault().nativeName
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        RadioLabel(language.nativeName, selected)
+                    }
                 }
             }
         }

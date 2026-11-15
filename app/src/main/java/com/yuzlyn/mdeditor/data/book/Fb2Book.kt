@@ -26,7 +26,7 @@ class Fb2Book private constructor(private val file: File) : Book {
         val bytes = file.readBytes()
         xml = Xml.decode(bytes)
         if (!xml.contains("FictionBook", ignoreCase = true)) {
-            throw BookException("這個檔案不是 FB2 電子書")
+            throw BookException(BookError.NOT_FB2)
         }
         // 先把 binary 切出來，正文那一段就不必帶著幾 MB 的 base64 一起被掃描。
         binaries = linkedMapOf<String, String>().apply {
@@ -36,7 +36,7 @@ class Fb2Book private constructor(private val file: File) : Book {
             }
         }
         chapters = topLevelSections(xml)
-        if (chapters.isEmpty()) throw BookException("這本 FB2 沒有可讀的章節")
+        if (chapters.isEmpty()) throw BookException(BookError.NO_CONTENT)
 
         val info = TITLE_INFO.find(xml)?.value.orEmpty()
         metadata = BookMetadata(
@@ -50,15 +50,17 @@ class Fb2Book private constructor(private val file: File) : Book {
         toc = chapters.mapIndexed { index, range ->
             val section = xml.substring(range.first, range.last + 1)
             val title = TITLE.find(section)?.value?.let { Xml.textOf(it) }
+            // 沒有標題就留空：目錄那一列由介面補「第 N 節 / Section N」，
+            // 資料層寫死中文的話，英文法文介面就只有這幾列是中文。
             TocEntry(
-                title = title?.takeIf { it.isNotEmpty() } ?: "第 ${index + 1} 節",
+                title = title.orEmpty(),
                 chapter = index
             )
         }
     }
 
     override suspend fun readChapter(index: Int): ChapterContent {
-        val range = chapters.getOrNull(index) ?: throw BookException("章節不存在（$index）")
+        val range = chapters.getOrNull(index) ?: throw BookException(BookError.CHAPTER_NOT_FOUND, index.toString())
         var body = xml.substring(range.first, range.last + 1)
         // `<title>` 出現在 body 裡會被 HTML 解析器當成文件的標題，直接換成一般元素最保險。
         body = body.replace(Regex("""(?is)<title\s*>(.*?)</title\s*>"""), "<div class=\"fb2-title\">$1</div>")
@@ -163,7 +165,7 @@ class Fb2Book private constructor(private val file: File) : Book {
         } catch (e: BookException) {
             throw e
         } catch (e: Throwable) {
-            throw BookException("FB2 解析失敗：${e.message ?: "未知錯誤"}", e)
+            throw BookException(BookError.PARSE_FAILED, e.message, e)
         }
     }
 }

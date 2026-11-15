@@ -48,6 +48,7 @@ import com.yuzlyn.mdeditor.data.settings.AppSettings
 import com.yuzlyn.mdeditor.data.settings.NoteBackground
 import com.yuzlyn.mdeditor.data.settings.NoteBackgroundInk
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
+import com.yuzlyn.mdeditor.ui.i18n.label
 import com.yuzlyn.mdeditor.ui.theme.Space
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -143,7 +144,7 @@ fun NoteBackgroundSettingsScreen(
                                         shape = RoundedCornerShape(Space.s100)
                                     )
                             )
-                            RadioLabel(preset.label, selected)
+                            RadioLabel(preset.label(strings), selected)
                         }
                     }
                 }
