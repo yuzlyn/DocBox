@@ -118,6 +118,9 @@ private enum class BookSort { RECENT, TITLE, ADDED }
  * 資料夾不是瀏覽層級（那會讓同一批書出現兩次入口），只是「收書的來源」；
  * 要登記或移除資料夾，走抽屜裡的「資料夾」。
  */
+// 頂欄是浮在內容上的，垂直偏移還是動畫值；Scaffold 給的 innerPadding 是靜態快照，
+// 用了反而在頂欄收合時留下一條空白。內容改自己算 topInset，所以這裡刻意不用它。
+@Suppress("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun LibraryScreen(

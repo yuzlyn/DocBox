@@ -87,7 +87,7 @@ ui/    把错误码翻成当前语言的一句话
 
 - `release` 使用 **debug keystore**（`signingConfig = signingConfigs.getByName("debug")`），这是刻意为之：v1.0.0 起发布的 APK 都是同一张证书，老用户可以直接覆盖升级。换签名会导致必须先卸载。要正式发布到别处，请换自己的 keystore。
 - `isMinifyEnabled = false`：当前未启用混淆，改这个要先跑一遍仪器测试。
-- `assembleRelease` 会顺带执行 `lintVitalRelease`（只查致命问题），所以 release 能过而 `lintDebug` 是红的，两者不矛盾。
+- `assembleRelease` 会顺带执行 `lintVitalRelease`（只查致命问题），比 `lintDebug` 宽松得多。两者都要过：`lintVitalRelease` 绿不代表 `lintDebug` 绿。
 
 ## 7. 测试布局
 
@@ -107,11 +107,42 @@ ui/    把错误码翻成当前语言的一句话
 
 | 项 | 现状 | 备注 |
 |---|---|---|
-| `lintDebug` | 4 error / 60 warning，构建失败 | 2 个 `UnusedMaterial3ScaffoldPaddingParameter`，2 个 `JavascriptInterface` 泛型误报 |
+| `lintDebug` | ✅ 0 error（2026-11-16 清零） | 仍余 60 warning，不作门禁 |
 | 仪器测试 | 本机无法无人值守跑通 | BRT-W09 需手动允许安装 |
 | 测试样本 | 两份副本手工同步 | 有漂移风险 |
 | 生成脚本 | EPUB 非幂等 | zip 时间戳 |
 | 混淆 | 未启用 | `isMinifyEnabled = false` |
+
+### 9.1 lint 清零时踩到的两个坑（别再写回去）
+
+**坑一：`Scaffold` 的 `innerPadding` 在浮层顶栏下确实用不上。**
+
+`LibraryScreen` 与 `MainScreen` 的顶栏是盖在内容上的，且垂直偏移是动画值
+（`topBarOffset`）。`Scaffold` 给的 `innerPadding` 是静态快照，套上去会在顶栏收合时留下一条空白。
+两处内容都自己算 `topInset` / `contentTopInset`，所以参数是**刻意**忽略的。
+正确写法是加注释 + `@Suppress("UnusedMaterial3ScaffoldPaddingParameter")`，不是把 `_` 改名了事——
+lint 只看「有没有被引用」，叫 `_` 一样报。
+
+**坑二：`JavascriptInterface` 报的是「解析失败」，不是「真的没标注解」。**
+
+`addJavascriptInterface(bridge, …)` 若写在 `WebView(ctx).apply { }` 里，`bridge` 是被 lambda
+捕获的变量，lint 的 `ConstantEvaluator` 拿不到具体型别，会退化成泛型 `T`，然后按「一个都没标」
+上报——即使方法上确实有 `@JavascriptInterface`。给变量补显式型别**没用**（实测过）。
+
+有效做法是把桥接安装抽成带参数型别的普通函数：
+
+```kotlin
+private fun WebView.installJsBridges(bridge: PreviewBridge, clipboard: PreviewClipboard) {
+    addJavascriptInterface(bridge, "PreviewBridge")
+    addJavascriptInterface(clipboard, "AndroidClipboard")
+}
+```
+
+参数型别明确后 lint 就能正常解析，检查得以保留。**不建议**直接 `@SuppressLint("JavascriptInterface")`
+把它关掉：JS 桥接少标一个注解，方法在 API 17+ 会对 JS 完全隐形，功能静默失效，这道防线值得留着。
+
+对照参考：`ui/reader/BookReaderView.kt` 的 `addJavascriptInterface(ReaderBridge(hooks), "Android")`
+直接传构造调用，型别可解析，从未报过。
 
 ## 10. 语言约定
 

@@ -173,6 +173,9 @@ enum class HomeSection { NOTES, NOTEBOOKS }
 /** 內容區的互斥狀態。 */
 private enum class HomeContent { LOADING, WELCOME, NOTEBOOKS, EMPTY_NOTEBOOKS, EMPTY_NOTES, NOTES }
 
+// 同 LibraryScreen：頂欄是覆蓋層，內容用 contentTopInset 跟著頂欄偏移走，
+// Scaffold 的靜態 innerPadding 會讓內容在頂欄上移時留白，所以刻意不用。
+@Suppress("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MainScreen(

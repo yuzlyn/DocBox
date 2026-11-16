@@ -73,6 +73,20 @@ private class PreviewClipboard(private val context: Context) {
     }
 }
 
+/**
+ * 掛上兩個 JS 橋接。
+ *
+ * 為什麼要抽成獨立函式：直接寫在 `WebView(ctx).apply { }` 裡時，`bridge` 與 `clipboard`
+ * 是被外層 lambda 捕獲的變數，lint 的型別解析會退化成泛型 `T`，於是誤報
+ * `JavascriptInterface`「沒有任何方法標註解」。走參數傳進來後型別可解析，
+ * 這個檢查就能繼續守著——橋接物件少標一個 `@JavascriptInterface`，方法在 API 17+
+ * 會直接對 JS 隱形，功能靜默失效，值得留一道防線。
+ */
+private fun WebView.installJsBridges(bridge: PreviewBridge, clipboard: PreviewClipboard) {
+    addJavascriptInterface(bridge, "PreviewBridge")
+    addJavascriptInterface(clipboard, "AndroidClipboard")
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -87,8 +101,11 @@ fun MarkdownPreview(
     val context = LocalContext.current
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
     val readyState = remember { mutableStateOf(false) }
-    val clipboard = remember { PreviewClipboard(context.applicationContext) }
-    val bridge = remember { PreviewBridge(onReady = { readyState.value = true }) }
+    // 型別要寫出來：`remember { }` 的推導結果在 lint 的型別解析裡會退化成泛型 T，
+    // 於是 addJavascriptInterface 被誤判成「介面方法沒標 @JavascriptInterface」。
+    val clipboard: PreviewClipboard = remember { PreviewClipboard(context.applicationContext) }
+    val bridge: PreviewBridge =
+        remember { PreviewBridge(onReady = { readyState.value = true }) }
     // 相對圖片路徑（images/xxx.jpg）要回到筆記所在資料夾去撈，這裡準備好解析器。
     val imageLoader = remember(noteUri) { AttachmentWebLoader(context, noteUri) }
     val currentImageLoader = rememberUpdatedState(imageLoader)
@@ -132,8 +149,7 @@ fun MarkdownPreview(
                         displayZoomControls = false
                         mediaPlaybackRequiresUserGesture = true
                     }
-                    addJavascriptInterface(bridge, "PreviewBridge")
-                    addJavascriptInterface(clipboard, "AndroidClipboard")
+                    installJsBridges(bridge, clipboard)
                     webViewClient = object : WebViewClient() {
                         override fun shouldInterceptRequest(
                             view: WebView,

@@ -14,14 +14,13 @@ DocBox 是一个纯本地、无 INTERNET 权限的 Android Markdown 笔记 + 电
 | `./gradlew assembleDebug` | ✅ 33s → `app/build/outputs/apk/debug/app-debug.apk`（47.9 MB） |
 | `./gradlew test` | ✅ 188 用例 / 25 个测试类 / 0 失败 |
 | `./gradlew assembleRelease` | ✅ 1m33s（沿用 debug 签名，见细则） |
-| `./gradlew lintDebug` | ❌ 4 error / 60 warning，**构建失败**，见下 |
+| `./gradlew lintDebug` | ✅ 0 error / 60 warning，构建成功 |
 | `./gradlew connectedDebugAndroidTest` | ⚠️ 未验证通过：被设备安装授权阻断 |
 | `python tools/make_test_books.py` | ⚠️ 能跑但**非幂等**，会改写已入库样本 |
 
-**判据要正确**：`lintDebug` 目前是红的，4 个 error 属既有问题——
-`ui/library/LibraryScreen.kt:477`、`ui/screen/MainScreen.kt:482`（`UnusedMaterial3ScaffoldPaddingParameter`）、
-`ui/preview/MarkdownPreview.kt:135,136`（`JavascriptInterface` 泛型接口误报）。
-因此门禁是「**不许变多**」，不是「必须为 0」。别把这几条算到自己头上。
+**lint 现在是绿的**（2026-11-16 修掉了最后 4 个 error）。60 个 warning 不作门禁，但 **error 必须保持为 0**。
+那 4 条曾经是「UnusedMaterial3ScaffoldPaddingParameter ×2 + JavascriptInterface ×2」，修复手法与踩到的 lint 解析坑见
+[docs/CONVENTIONS.md](docs/CONVENTIONS.md) 第 9 节——别照着旧写法再写回去。
 
 **环境约束**：
 
@@ -48,7 +47,7 @@ DocBox 是一个纯本地、无 INTERNET 权限的 Android Markdown 笔记 + 电
 2. `./gradlew test` 通过，用例数不低于基线 **188**。
 3. 动过文案 → 四语齐全，`AppStringsFillTest` 绿。
 4. 动过用户可见功能 → `HelpContent.kt` 四份同步更新。
-5. `lintDebug` 的 error 数不超过 **4**；多出一条就必须修掉。
+5. `./gradlew lintDebug` 通过，**error 必须为 0**（warning 不设限）。
 6. 无新增硬编码颜色、无新增数据层中文句子。
 7. `git diff` 中不出现 `local.properties`、`build/`、测试样本二进制。
 8. commit message 说明「为什么改」，而不是「改了什么」。
