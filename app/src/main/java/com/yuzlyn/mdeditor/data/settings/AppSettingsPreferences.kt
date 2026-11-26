@@ -44,6 +44,7 @@ private object Keys {
     val READER_MODE = stringPreferencesKey("reader_mode")
     val READER_LINE_HEIGHT = intPreferencesKey("reader_line_height")
     val READER_MARGIN = intPreferencesKey("reader_margin")
+    val READER_CORNER_QUOTES = booleanPreferencesKey("reader_corner_quotes")
     val HOME_TARGET = stringPreferencesKey("home_target")
     val STATS_ENABLED = booleanPreferencesKey("stats_enabled")
     val STATS_TRACK_READING = booleanPreferencesKey("stats_track_reading")
@@ -132,6 +133,8 @@ class AppSettingsPreferences(context: Context) {
                     .coerceIn(MIN_LINE_HEIGHT_TENTHS, MAX_LINE_HEIGHT_TENTHS),
                 readerMargin = (preferences[Keys.READER_MARGIN] ?: 20)
                     .coerceIn(MIN_MARGIN, MAX_MARGIN),
+                // 沒存過就當開：這是閱讀器預設的引號排法，只有明確關掉的人才讀原文。
+                readerCornerQuotes = preferences[Keys.READER_CORNER_QUOTES] ?: true,
                 homeTarget = HomeTarget.fromId(preferences[Keys.HOME_TARGET]),
                 statsEnabled = preferences[Keys.STATS_ENABLED] ?: true,
                 statsTrackReading = preferences[Keys.STATS_TRACK_READING] ?: true,
@@ -179,6 +182,7 @@ class AppSettingsPreferences(context: Context) {
                     MAX_LINE_HEIGHT_TENTHS
                 )
                 preferences[Keys.READER_MARGIN] = next.readerMargin.coerceIn(MIN_MARGIN, MAX_MARGIN)
+                preferences[Keys.READER_CORNER_QUOTES] = next.readerCornerQuotes
                 preferences[Keys.HOME_TARGET] = next.homeTarget.id
                 preferences[Keys.STATS_ENABLED] = next.statsEnabled
                 preferences[Keys.STATS_TRACK_READING] = next.statsTrackReading

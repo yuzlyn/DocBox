@@ -448,5 +448,78 @@
     }).observe(document.body, { childList: true, subtree: true });
   })();
 </script>
+<script>
+  /**
+   * 彎引號改排直角引號（“” → 「」）。
+   *
+   * 為什麼在預覽頁做、而不是改 Markdown 原文：原文是使用者自己的檔案，改了就是改內容；
+   * 而行內 `code` 與圍籬程式碼裡的引號必須原樣，只有渲染出來的文字節點才分得清哪個是正文。
+   *
+   * 與閱讀器（data/book/CornerQuotes.kt）的差別：那邊按**整章**判斷，因為一本書是
+   * 排版好的成品，一章之內引號要統一；這邊按**文字節點**判斷，因為筆記是一段段寫的，
+   * 而且目錄標題是硬編碼的中文，用它判斷整篇會把所有英文段落的引號也帶走。
+   */
+  (function () {
+    var ENABLED = false;
+    var SKIP = { SCRIPT: 1, STYLE: 1, CODE: 1, PRE: 1, TEXTAREA: 1 };
+    var EAST_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+    var observer = null;
+    var scheduled = 0;
+
+    function convert(root) {
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+      var node;
+      while ((node = walker.nextNode())) {
+        var parent = node.parentNode;
+        if (!parent || SKIP[parent.tagName]) continue;
+        var text = node.nodeValue || '';
+        // 這一段沒有漢字／假名就放過：純西文的引號本來就該是彎的。
+        if (!EAST_ASIAN.test(text)) continue;
+        var next = text.replace(/\u201c/g, '「').replace(/\u201d/g, '」');
+        if (next !== text) node.nodeValue = next;
+      }
+    }
+
+    function apply() {
+      var root = document.getElementById('content');
+      if (!ENABLED || !root) return;
+      convert(root);
+    }
+
+    function schedule() {
+      if (scheduled) return;
+      scheduled = requestAnimationFrame(function () {
+        scheduled = 0;
+        apply();
+      });
+    }
+
+    window.setCornerQuotes = function (enabled) {
+      ENABLED = !!enabled;
+      if (ENABLED) {
+        apply();
+        if (!observer && window.MutationObserver) {
+          // 只觀察新增節點（MathJax 補排版、目錄插入）——自己的改動是文字內容變更，
+          // 不在 childList 範圍內，不會自己觸發自己。
+          observer = new MutationObserver(schedule);
+          observer.observe(document.body, { childList: true, subtree: true });
+        }
+      } else if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+    };
+
+    // 渲染完就換一次；開關關掉時這裡等於空跑，等 Kotlin 重新渲染回原文。
+    var render = window.updateMarkdown;
+    if (typeof render === 'function') {
+      window.updateMarkdown = function () {
+        var result = render.apply(window, arguments);
+        apply();
+        return result;
+      };
+    }
+  })();
+</script>
 </body>
 </html>

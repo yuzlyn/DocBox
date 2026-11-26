@@ -45,9 +45,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.profile.ProfileData
+import com.yuzlyn.mdeditor.ui.component.ConstrainedContent
 import com.yuzlyn.mdeditor.data.profile.githubHandle
 import com.yuzlyn.mdeditor.ui.component.pressRipple
+import com.yuzlyn.mdeditor.ui.component.pressScale
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.theme.Space
 
@@ -75,7 +78,14 @@ fun Avatar(
         modifier = Modifier
             .size(size)
             // 原生 ripple 不受外層 clip 影響，改用自繪且裁成圓形的波紋。
-            .pressRipple(interactionSource = interactionSource, shape = CircleShape)
+            // 縮放交給 pressScale：和頂欄／側欄圓鈕共用「最短保持 140ms」的節奏，
+            // 快速點一下也看得到；pressRipple 只負責波紋，避免兩套縮放各跑各的。
+            .pressScale(interactionSource = interactionSource)
+            .pressRipple(
+                interactionSource = interactionSource,
+                shape = CircleShape,
+                animateScale = false
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -171,16 +181,18 @@ fun ProfileScreen(
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Space.s300),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Space.s200)
+        ConstrainedContent(
+            maxWidth = 560.dp,
+            modifier = Modifier.padding(innerPadding).imePadding()
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Space.s300),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Space.s200)
+            ) {
             Spacer(modifier = Modifier.height(Space.s200))
             Avatar(
                 avatarPath = avatarPath,
@@ -212,6 +224,7 @@ fun ProfileScreen(
                 onValueChange = { value -> github = value; persist() }
             )
             Spacer(modifier = Modifier.height(Space.s300))
+            }
         }
     }
 }

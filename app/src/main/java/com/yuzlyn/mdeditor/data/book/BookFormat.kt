@@ -97,7 +97,18 @@ enum class BookFormat(
          */
         fun sniffHead(head: ByteArray): BookFormat? {
             if (head.size < 8) return null
-            if (head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte()) return EPUB
+            if (head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte()) {
+                // PK 不等於 EPUB：DOCX／XLSX／ODT 也都是 zip。標準 EPUB 的第一個
+                // 條目固定是不壓縮的 `mimetype`，內容 `application/epub+zip` 會落在
+                // 前 80 個位元組內；沒有這個字串就當「不是書」，交給匯入器處理。
+                // 少了這道檢查，.docx 會被丟進閱讀器，使用者只看到「不是 EPUB」。
+                val zipHead = String(head, 0, head.size, Charsets.US_ASCII)
+                return if (zipHead.contains("application/epub+zip", ignoreCase = true)) {
+                    EPUB
+                } else {
+                    null
+                }
+            }
             if (head.size >= 68) {
                 val type = String(head, 60, 8, Charsets.US_ASCII)
                 if (type == "BOOKMOBI" || type == "TEXtREAd") return MOBI

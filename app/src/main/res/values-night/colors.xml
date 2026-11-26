@@ -2,4 +2,5 @@
 <resources>
     <!-- 夜間開屏：深色 App 的底色，不是純黑（純黑會在 OLED 上顯出邊界）。 -->
     <color name="splash_background">#101413</color>
+    <color name="splash_icon_background">#396471</color>
 </resources>

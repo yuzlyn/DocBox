@@ -4,14 +4,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -79,7 +75,7 @@ internal fun supportCodes(strings: AppStrings): List<SupportCode> = listOf(
 
 /**
  * 單張碼：圖片圓角 = 外卡 28dp − 內距 16dp（M3 嵌套圓角規則）。
- * 按下縮到 0.96，用 spatial spring 回來；點擊交給呼叫端決定（放大）。
+ * 按下由圖片容器執行回縮與波紋；整卡點擊交給呼叫端決定（放大）。
  */
 @Composable
 internal fun QrCard(
@@ -89,12 +85,6 @@ internal fun QrCard(
     onClick: () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.96f else 1f,
-        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-        label = "qr-press"
-    )
     val painter = painterResource(code.drawableId)
     val ratio = painter.intrinsicSize.let {
         if (it.width > 0f && it.height > 0f) it.width / it.height else 0.7f
@@ -104,11 +94,6 @@ internal fun QrCard(
     Column(
         modifier = Modifier
             .width(width)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .pressRipple(interactionSource = interaction, shape = corner)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -119,8 +104,11 @@ internal fun QrCard(
         Surface(
             shape = corner,
             color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            modifier = Modifier.fillMaxWidth().aspectRatio(ratio)
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(ratio)
+                // 回縮與波紋只作用在圖片容器；文字仍由外層整卡熱區接收點擊。
+                .pressRipple(interactionSource = interaction, shape = corner)
         ) {
             Image(
                 painter = painter,

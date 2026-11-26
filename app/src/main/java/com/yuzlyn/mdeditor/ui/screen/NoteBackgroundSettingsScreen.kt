@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -100,12 +101,14 @@ fun NoteBackgroundSettingsScreen(
             SettingsRadioRow(
                 selected = defaultSelected,
                 onClick = {
-                    onChange(
-                        settings.copy(
-                            noteBackground = "",
-                            noteBackgroundPreset = NoteBackground.DEFAULT.id
+                    if (!defaultSelected) {
+                        onChange(
+                            settings.copy(
+                                noteBackground = "",
+                                noteBackgroundPreset = NoteBackground.DEFAULT.id
+                            )
                         )
-                    )
+                    }
                 }
             ) {
                 RadioLabel(strings.noteBackgroundDefault, defaultSelected)
@@ -362,6 +365,8 @@ private fun ImageThumb(
                 .align(Alignment.TopEnd)
                 .padding(Space.s50)
                 .size(Space.s300)
+                // 維持 24dp 圓形視覺，但實際觸控區至少 48dp。
+                .minimumInteractiveComponentSize()
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
                 .clickable(onClick = onDelete),
@@ -369,7 +374,7 @@ private fun ImageThumb(
         ) {
             Icon(
                 Icons.Default.Close,
-                contentDescription = null,
+                contentDescription = LocalAppStrings.current.delete,
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(Space.s200)
             )

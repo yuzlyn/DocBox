@@ -25,15 +25,117 @@
         android:theme="@style/Theme.MDEditor">
         <!-- 真正的入口是下面那组 activity-alias。MainActivity 自己不再带 LAUNCHER，
              否则会同时冒出两个图标。 -->
+        <!-- exported 必须是 true，别的 App（QQ、微信、文件管理器）才能把文件递过来；
+             它只认下面几组 VIEW 筛选器：电子书进阅读器、Word／PDF／HTML／Markdown／
+             纯文本导入成笔记，没有别的入口，所以这份暴露面就只是「打开一个文件」。
+             launchMode=singleTop：已经开着的时候再递一本，走 onNewIntent 换书，
+             不会叠出第二个窗口、也不会把当前这本的阅读进度丢掉。 -->
         <activity
             android:name=".MainActivity"
-            android:exported="false"
-            android:label="@string/app_name"
+            android:exported="true"
+            android:launchMode="singleTop"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:theme="@style/Theme.MDEditor"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize">
+            <!-- 帶著正確型別送過來的書（系統檔案、雲端硬碟）。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
+                <data android:mimeType="application/x-fictionbook+xml" />
+            </intent-filter>
+            <!-- 聊天軟體多半只給 application/octet-stream，甚至完全不帶型別
+                 （QQ 的「用其他應用打開」就是這樣）。型別靠不住時系統改看路徑後綴，
+                 所以四種格式的副檔名各要一條；少了這組，清單裡就只有型別標對的 App。
+                 這組只收 content://：路徑比對必須有 host 才成立，而 file:// 根本沒有
+                 authority；再說 Android 7 起也不准 App 之間傳 file:// 了。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data
+                    android:scheme="content"
+                    android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.epub" />
+                <data android:pathPattern=".*\\.mobi" />
+                <data android:pathPattern=".*\\.prc" />
+                <data android:pathPattern=".*\\.azw3" />
+                <data android:pathPattern=".*\\.azw" />
+                <data android:pathPattern=".*\\.fb2" />
+            </intent-filter>
+            <!-- Markdown／纯文本：同样分「型别」与「后缀」两组。
+                 text/markdown 是 IANA 的标准型别，text/x-markdown 是旧写法；
+                 text/plain 也收，因为很多文件管理器与聊天软件把 .md 标成纯文本。
+                 只作为候选出现，不会抢走别的 App 的默认打开方式。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/x-markdown" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- 型别是 octet-stream 或干脆不带的（QQ「用其他应用打开」）只能靠后缀认。
+                 这里同时收 .md 与 .markdown，大小写各一条：pathPattern 区分大小写。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data
+                    android:scheme="content"
+                    android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.md" />
+                <data android:pathPattern=".*\\.MD" />
+                <data android:pathPattern=".*\\.markdown" />
+                <data android:pathPattern=".*\\.MARKDOWN" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\.TXT" />
+            </intent-filter>
+            <!-- Word／PDF／HTML：應用本身早就能把這幾種轉成筆記（data/importer），
+                 但清單沒宣告，系統的「用其他應用程式開啟」就不會把它列進來。
+                 型別組：PDF 有 application/x-pdf 這種舊寫法；DOCX 一律用 OOXML 長型別；
+                 HTML 另有 application/xhtml+xml。doc（舊版二進位格式）不宣告——
+                 匯入器只解 OOXML，宣告了只會讓使用者選到一個必然失敗的入口。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/x-pdf" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="application/xhtml+xml" />
+            </intent-filter>
+            <!-- 同型別不可靠時的後備：聊天軟體／雲端硬碟常給 octet-stream，
+                 甚至完全不帶型別，只能比對路徑後綴。大小寫各一條，pathPattern 區分大小寫。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <!-- scheme 與 host 分開寫：合在同一個 <data> 會被 lint 標成
+                     IntentFilterUniqueDataAttributes；分開後語意相同（屬性各自取聯集）。 -->
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.pdf" />
+                <data android:pathPattern=".*\\.PDF" />
+                <data android:pathPattern=".*\\.docx" />
+                <data android:pathPattern=".*\\.DOCX" />
+                <data android:pathPattern=".*\\.html" />
+                <data android:pathPattern=".*\\.HTML" />
+                <data android:pathPattern=".*\\.htm" />
+                <data android:pathPattern=".*\\.HTM" />
+                <data android:pathPattern=".*\\.xhtml" />
+                <data android:pathPattern=".*\\.XHTML" />
+            </intent-filter>
+        </activity>
         <!-- ==================== 桌面图标：字形 × 配色 ====================
              图标是打包进 APK 的静态资源，运行时改不了像素，能改的只有「哪个组件是启动器入口」，
              所以每一个「字形 × 配色」组合都得有一条 activity-alias。

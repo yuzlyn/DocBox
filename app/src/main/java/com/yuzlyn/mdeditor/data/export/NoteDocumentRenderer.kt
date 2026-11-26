@@ -3,7 +3,6 @@ package com.yuzlyn.mdeditor.data.export
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
@@ -16,6 +15,7 @@ import com.yuzlyn.mdeditor.data.settings.WritingGuide
 import java.io.ByteArrayOutputStream
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.max
 
 /** 圖片匯出的結果；[truncated] 表示內容太長，只截了前面一段。 */
 internal data class PngResult(val bytes: ByteArray, val truncated: Boolean)
@@ -97,25 +97,38 @@ internal object NoteDocumentRenderer {
     /** 基線以下留給下沉筆畫的比例；與編輯器 `BASELINE_TO_BOTTOM` 同源。 */
     private const val BASELINE_TO_BOTTOM = 0.14f
 
-    private const val GUIDE_PDF_COLOR = 0xFFD0D0D0.toInt()
-    private const val GUIDE_IMAGE_COLOR = 0xFFCFCFCF.toInt()
+    /**
+     * 直排時要跟著轉九十度的中文標點。
+     *
+     * 橫排的「」是左右開口的，疊成直書後開口會朝著上下——那是「躺著」的引號，
+     * 不是直排的引號。中文直排的慣例是把這一整類標點轉九十度（字型裡的 `vert`
+     * 特性做的也是同一件事），引號的開口才會朝向被引用的那句話。
+     * 編輯器走字型的 `vert`，這裡沒有字型特性可用，就自己轉。
+     */
+    private const val VERTICAL_ROTATED_PUNCT = "「」『』（）《》〈〉【】〔〕［］｛｝"
+
+    /** 這個字在直排裡要不要轉九十度。 */
+    private fun rotatesInVertical(codePoint: Int): Boolean =
+        codePoint < 0x2E80 || VERTICAL_ROTATED_PUNCT.indexOf(codePoint.toChar()) >= 0
 
     // ---------------------------------------------------------------- PDF
 
     fun renderPdf(
         text: String,
         guide: WritingGuide = WritingGuide.NONE,
-        vertical: Boolean = false
+        vertical: Boolean = false,
+        /** 背景／文字／輔助線的顏色；由編輯頁傳進來，輸出才跟螢幕一致。 */
+        theme: ExportTheme = ExportTheme.DEFAULT
     ): ByteArray {
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
+            color = theme.text
             textSize = 11f
-            typeface = Typeface.SERIF
+            typeface = theme.typeface ?: Typeface.SERIF
         }
         return if (vertical || guide == WritingGuide.GRID) {
-            renderPdfCells(text, guide, paint, vertical)
+            renderPdfCells(text, guide, paint, vertical, theme)
         } else {
-            renderPdfFlow(text, guide, paint)
+            renderPdfFlow(text, guide, paint, theme)
         }
     }
 
@@ -124,7 +137,8 @@ internal object NoteDocumentRenderer {
         text: String,
         guide: WritingGuide,
         paint: TextPaint,
-        vertical: Boolean
+        vertical: Boolean,
+        theme: ExportTheme
     ): ByteArray {
         val document = PdfDocument()
         try {
@@ -159,6 +173,8 @@ internal object NoteDocumentRenderer {
                     PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
                 )
                 val canvas = page.canvas
+                // 整頁底色先鋪：PDF 預設是白紙，深色主題不鋪這一層就會變回白底配淺字。
+                canvas.drawColor(theme.background)
                 canvas.save()
                 canvas.translate(PAGE_MARGIN, PAGE_MARGIN)
                 canvas.clipRect(0f, 0f, contentWidth, contentHeight)
@@ -172,7 +188,7 @@ internal object NoteDocumentRenderer {
                         top = 0f,
                         cell = cell,
                         guide = guide,
-                        color = GUIDE_PDF_COLOR,
+                        color = theme.guide,
                         maxRows = cellsPerLine
                     )
                 } else {
@@ -184,7 +200,7 @@ internal object NoteDocumentRenderer {
                         cell = cell,
                         cellsPerLine = cellsPerLine,
                         guide = guide,
-                        color = GUIDE_PDF_COLOR
+                        color = theme.guide
                     )
                 }
                 canvas.restore()
@@ -203,7 +219,12 @@ internal object NoteDocumentRenderer {
     }
 
     /** 散文：交給 StaticLayout 排，只有分隔線需要自己畫。 */
-    private fun renderPdfFlow(text: String, guide: WritingGuide, paint: TextPaint): ByteArray {
+    private fun renderPdfFlow(
+        text: String,
+        guide: WritingGuide,
+        paint: TextPaint,
+        theme: ExportTheme
+    ): ByteArray {
         val document = PdfDocument()
         try {
             val contentWidth = (PAGE_WIDTH - PAGE_MARGIN * 2).toInt()
@@ -227,6 +248,7 @@ internal object NoteDocumentRenderer {
                     PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
                 )
                 val canvas = page.canvas
+                canvas.drawColor(theme.background)
                 canvas.save()
                 canvas.translate(PAGE_MARGIN, PAGE_MARGIN)
                 canvas.clipRect(0f, 0f, contentWidth.toFloat(), contentHeight.toFloat())
@@ -238,7 +260,7 @@ internal object NoteDocumentRenderer {
                     width = contentWidth.toFloat(),
                     height = contentHeight.toFloat(),
                     cell = cell,
-                    color = GUIDE_PDF_COLOR
+                    color = theme.guide
                 )
                 layout.draw(canvas)
                 canvas.restore()
@@ -285,17 +307,19 @@ internal object NoteDocumentRenderer {
         text: String,
         guide: WritingGuide = WritingGuide.NONE,
         vertical: Boolean = false,
-        card: ExportCard? = null
+        card: ExportCard? = null,
+        /** 背景／文字／輔助線／字型；圖片連背景圖一起帶。 */
+        theme: ExportTheme = ExportTheme.DEFAULT
     ): PngResult {
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(28, 28, 30)
+            color = theme.text
             textSize = IMAGE_TEXT_SIZE
-            typeface = Typeface.DEFAULT
+            typeface = theme.typeface ?: Typeface.DEFAULT
         }
         return if (vertical || guide == WritingGuide.GRID) {
-            renderPngCells(text, guide, paint, vertical, card)
+            renderPngCells(text, guide, paint, vertical, card, theme)
         } else {
-            renderPngFlow(text, guide, paint, card)
+            renderPngFlow(text, guide, paint, card, theme)
         }
     }
 
@@ -304,13 +328,14 @@ internal object NoteDocumentRenderer {
         guide: WritingGuide,
         paint: TextPaint,
         vertical: Boolean,
-        card: ExportCard?
+        card: ExportCard?,
+        theme: ExportTheme
     ): PngResult {
         val cell = cellWidth(paint)
         return if (vertical) {
-            renderVerticalCells(text, guide, paint, cell, card)
+            renderVerticalCells(text, guide, paint, cell, card, theme)
         } else {
-            renderHorizontalCells(text, guide, paint, cell, card)
+            renderHorizontalCells(text, guide, paint, cell, card, theme)
         }
     }
 
@@ -320,7 +345,8 @@ internal object NoteDocumentRenderer {
         guide: WritingGuide,
         paint: TextPaint,
         cell: Float,
-        card: ExportCard?
+        card: ExportCard?,
+        theme: ExportTheme
     ): PngResult {
         val contentWidth = IMAGE_WIDTH - IMAGE_PADDING * 2
         val band = card?.let { measureCardBand(it, paint, contentWidth) }
@@ -344,11 +370,11 @@ internal object NoteDocumentRenderer {
         val bitmap = Bitmap.createBitmap(IMAGE_WIDTH, height, Bitmap.Config.ARGB_8888)
         try {
             val canvas = Canvas(bitmap)
-            canvas.drawColor(Color.WHITE)
+            drawPageBackground(canvas, theme, IMAGE_WIDTH, height)
             canvas.save()
             canvas.translate(IMAGE_PADDING.toFloat(), IMAGE_PADDING.toFloat())
             if (before && band != null && card != null) {
-                drawCardBand(canvas, band, card, contentWidth.toFloat(), 0f)
+                drawCardBand(canvas, band, card, contentWidth.toFloat(), 0f, theme.guide)
             }
             canvas.save()
             canvas.translate(0f, if (before) bandSpace else 0f)
@@ -361,7 +387,7 @@ internal object NoteDocumentRenderer {
                 cell = cell,
                 cellsPerLine = cellsPerLine,
                 guide = guide,
-                color = GUIDE_IMAGE_COLOR
+                color = theme.guide
             )
             canvas.restore()
             if (!before && band != null && card != null) {
@@ -370,7 +396,8 @@ internal object NoteDocumentRenderer {
                     band = band,
                     card = card,
                     width = contentWidth.toFloat(),
-                    top = bodyHeight + cardGap(paint)
+                    top = bodyHeight + cardGap(paint),
+                    guideColor = theme.guide
                 )
             }
             canvas.restore()
@@ -392,7 +419,8 @@ internal object NoteDocumentRenderer {
         guide: WritingGuide,
         paint: TextPaint,
         cell: Float,
-        card: ExportCard?
+        card: ExportCard?,
+        theme: ExportTheme
     ): PngResult {
         val rows = VERTICAL_IMAGE_ROWS
         val all = packCellLines(
@@ -431,7 +459,7 @@ internal object NoteDocumentRenderer {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         try {
             val canvas = Canvas(bitmap)
-            canvas.drawColor(Color.WHITE)
+            drawPageBackground(canvas, theme, width, height)
             canvas.save()
             canvas.translate(IMAGE_PADDING.toFloat(), IMAGE_PADDING.toFloat())
             // 正文靠右：contentW 可能被名片撐寬，右邊界仍然是同一條。
@@ -443,7 +471,7 @@ internal object NoteDocumentRenderer {
                 top = 0f,
                 cell = cell,
                 guide = guide,
-                color = GUIDE_IMAGE_COLOR,
+                color = theme.guide,
                 maxRows = rows
             )
             if (band != null && card != null) {
@@ -454,7 +482,7 @@ internal object NoteDocumentRenderer {
                     0f,
                     bandRight + cardGap / 2f,
                     height - IMAGE_PADDING * 2f,
-                    guidePaint(GUIDE_IMAGE_COLOR)
+                    guidePaint(theme.guide)
                 )
                 drawVerticalCardBand(
                     canvas = canvas,
@@ -475,7 +503,8 @@ internal object NoteDocumentRenderer {
         text: String,
         guide: WritingGuide,
         paint: TextPaint,
-        card: ExportCard?
+        card: ExportCard?,
+        theme: ExportTheme
     ): PngResult {
         val contentWidth = IMAGE_WIDTH - IMAGE_PADDING * 2
         val body = text.ifEmpty { " " }
@@ -492,11 +521,11 @@ internal object NoteDocumentRenderer {
         val bitmap = Bitmap.createBitmap(IMAGE_WIDTH, height, Bitmap.Config.ARGB_8888)
         try {
             val canvas = Canvas(bitmap)
-            canvas.drawColor(Color.WHITE)
+            drawPageBackground(canvas, theme, IMAGE_WIDTH, height)
             canvas.save()
             canvas.translate(IMAGE_PADDING.toFloat(), IMAGE_PADDING.toFloat())
             if (before && band != null && card != null) {
-                drawCardBand(canvas, band, card, contentWidth.toFloat(), 0f)
+                drawCardBand(canvas, band, card, contentWidth.toFloat(), 0f, theme.guide)
             }
             canvas.save()
             canvas.translate(0f, if (before) bandSpace else 0f)
@@ -509,7 +538,7 @@ internal object NoteDocumentRenderer {
                 width = contentWidth.toFloat(),
                 height = bodyHeight,
                 cell = cellWidth(paint),
-                color = GUIDE_IMAGE_COLOR
+                color = theme.guide
             )
             layout.draw(canvas)
             canvas.restore()
@@ -519,7 +548,8 @@ internal object NoteDocumentRenderer {
                     band = band,
                     card = card,
                     width = contentWidth.toFloat(),
-                    top = bodyHeight + cardGap(paint)
+                    top = bodyHeight + cardGap(paint),
+                    guideColor = theme.guide
                 )
             }
             canvas.restore()
@@ -577,11 +607,12 @@ internal object NoteDocumentRenderer {
         band: CardBand,
         card: ExportCard,
         width: Float,
-        top: Float
+        top: Float,
+        guideColor: Int
     ) {
-        // 一條髮絲線把名片與正文分開；用的是稿紙格線同一個灰，整張圖才是一套。
+        // 一條髮絲線把名片與正文分開；用的是稿紙格線同一個顏色，整張圖才是一套。
         val lead = band.paint.textSize * 1.1f
-        canvas.drawLine(0f, top + lead * 0.2f, width, top + lead * 0.2f, guidePaint(GUIDE_IMAGE_COLOR))
+        canvas.drawLine(0f, top + lead * 0.2f, width, top + lead * 0.2f, guidePaint(guideColor))
         val contentTop = top + lead
         val contentHeight = band.height - lead
         // 頭像與右邊那三行資料各自在自己的高度裡置中：一邊貼頂就成了錯位。
@@ -696,8 +727,8 @@ internal object NoteDocumentRenderer {
                 val codePoint = line.codePointAt(index)
                 val glyph = String(Character.toChars(codePoint))
                 index += Character.charCount(codePoint)
-                if (codePoint < 0x2E80) {
-                    // 英數與正文同一個規則：轉九十度，字頂朝右。
+                if (rotatesInVertical(codePoint)) {
+                    // 英數與直排標點同一個規則：轉九十度，字頂朝右。
                     canvas.save()
                     canvas.translate(
                         center + (metrics.ascent + metrics.descent) / 2f,
@@ -748,6 +779,34 @@ internal object NoteDocumentRenderer {
     private fun compress(bitmap: Bitmap): ByteArray = ByteArrayOutputStream().use { out ->
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         out.toByteArray()
+    }
+
+    /**
+     * 鋪一張圖的底：先填底色，有背景圖就等比裁切鋪滿。
+     *
+     * 裁切方式與編輯頁的 `ContentScale.Crop` 一致：取短邊放大到蓋滿整張圖，
+     * 多出來的部分左右（或上下）對稱切掉，所以匯出的圖不會出現變形的臉或拉長的紙紋。
+     */
+    private fun drawPageBackground(canvas: Canvas, theme: ExportTheme, width: Int, height: Int) {
+        canvas.drawColor(theme.background)
+        val image = theme.backgroundImage ?: return
+        if (image.isRecycled || image.width <= 0 || image.height <= 0) return
+        val scale = max(
+            width.toFloat() / image.width,
+            height.toFloat() / image.height
+        )
+        val drawWidth = image.width * scale
+        val drawHeight = image.height * scale
+        val left = (width - drawWidth) / 2f
+        val top = (height - drawHeight) / 2f
+        val src = Rect(0, 0, image.width, image.height)
+        val dst = RectF(left, top, left + drawWidth, top + drawHeight)
+        canvas.drawBitmap(
+            image,
+            src,
+            dst,
+            Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        )
     }
 
     // ------------------------------------------------------- 稿紙模型：畫
@@ -871,7 +930,7 @@ internal object NoteDocumentRenderer {
             val left = right - columnPitch
             var row = 0
             atoms.forEach { atom ->
-                val rotated = atom.text.codePointAt(0) < 0x2E80
+                val rotated = rotatesInVertical(atom.text.codePointAt(0))
                 if (rotated) {
                     // 旋轉九十度後，本地 +x 就是螢幕向下、本地 +y 指向螢幕左邊；
                     // 所以要讓字身在欄中央，基準線得往右平移 (ascent + descent) / 2。

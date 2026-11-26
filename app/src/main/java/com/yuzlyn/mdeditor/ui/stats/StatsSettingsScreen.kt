@@ -35,7 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.settings.AppSettings
+import com.yuzlyn.mdeditor.ui.component.ConstrainedContent
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.screen.SegmentedListGroup
 import com.yuzlyn.mdeditor.ui.screen.SettingsRow
@@ -79,14 +81,17 @@ fun StatsSettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Space.s200, vertical = Space.s200),
-            verticalArrangement = Arrangement.spacedBy(Space.s400)
+        ConstrainedContent(
+            maxWidth = 720.dp,
+            modifier = Modifier.padding(innerPadding)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Space.s200, vertical = Space.s200),
+                verticalArrangement = Arrangement.spacedBy(Space.s400)
+            ) {
             SegmentedListGroup(
                 title = strings.statsSettingsTitle,
                 rows = listOf(
@@ -145,6 +150,7 @@ fun StatsSettingsScreen(
                     )
                 )
             )
+            }
         }
     }
 
@@ -184,10 +190,13 @@ private fun toggleRow(
     title = title,
     subtitle = subtitle,
     showChevron = false,
+    enabled = enabled,
     trailing = {
         Switch(
             checked = checked,
-            onCheckedChange = if (enabled) onCheckedChange else null
+            enabled = enabled,
+            // 整列統一處理 enabled 與 onCheckedChange，Switch 只顯示目前狀態。
+            onCheckedChange = null
         )
     },
     onClick = { if (enabled) onCheckedChange(!checked) }

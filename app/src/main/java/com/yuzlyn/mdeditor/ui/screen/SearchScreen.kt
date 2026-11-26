@@ -38,7 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.NoteModel
+import com.yuzlyn.mdeditor.ui.component.ConstrainedContent
 import com.yuzlyn.mdeditor.ui.component.pressRipple
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.theme.Space
@@ -88,12 +90,11 @@ fun SearchScreen(
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = Space.s200)
+        ConstrainedContent(
+            maxWidth = 720.dp,
+            modifier = Modifier.padding(innerPadding).padding(horizontal = Space.s200)
         ) {
+            Column(modifier = Modifier.fillMaxSize()) {
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -185,6 +186,7 @@ fun SearchScreen(
                     }
                 }
             }
+        }
         }
     }
 }

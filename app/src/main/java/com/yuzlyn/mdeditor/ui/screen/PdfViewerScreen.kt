@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -37,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -47,9 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.ui.theme.Space
@@ -89,12 +90,6 @@ fun PdfViewerScreen(
     var importing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-
-    val density = LocalDensity.current
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    val targetWidth = remember(density, screenWidthDp) {
-        with(density) { screenWidthDp.dp.toPx().toInt() }.coerceIn(480, 1600)
-    }
 
     DisposableEffect(uri) {
         var descriptor: ParcelFileDescriptor? = null
@@ -222,11 +217,26 @@ fun PdfViewerScreen(
                 verticalArrangement = Arrangement.spacedBy(Space.s150)
             ) {
                 items(count = pageCount) { index ->
-                    PdfPage(
-                        renderer = activeRenderer,
-                        pageIndex = index,
-                        targetWidth = targetWidth
-                    )
+                    // 寬螢幕以 960dp 為閱讀上限；量置中後的實際頁寬，
+                    // 不再用整個螢幕寬度決定點陣圖尺寸。
+                    var targetWidth by remember { mutableIntStateOf(0) }
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 960.dp)
+                                .fillMaxWidth()
+                                .onSizeChanged { targetWidth = it.width }
+                        ) {
+                            PdfPage(
+                                renderer = activeRenderer,
+                                pageIndex = index,
+                                targetWidth = targetWidth
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -237,8 +247,11 @@ fun PdfViewerScreen(
 private fun PdfPage(renderer: PdfRenderer, pageIndex: Int, targetWidth: Int) {
     val strings = LocalAppStrings.current
     val bitmap by produceState<Bitmap?>(initialValue = null, renderer, pageIndex, targetWidth) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { renderPage(renderer, pageIndex, targetWidth) }.getOrNull()
+        // 首次佈局前還沒有頁寬；量到寬度後 key 改變，會重新啟動這段渲染。
+        if (targetWidth > 0) {
+            value = withContext(Dispatchers.IO) {
+                runCatching { renderPage(renderer, pageIndex, targetWidth) }.getOrNull()
+            }
         }
     }
 

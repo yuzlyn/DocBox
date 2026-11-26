@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,21 +21,35 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Wallpaper
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.yuzlyn.mdeditor.data.book.BookLibrary
 import com.yuzlyn.mdeditor.data.settings.AppLanguage
 import com.yuzlyn.mdeditor.data.settings.AppSettings
 import com.yuzlyn.mdeditor.data.settings.DarkModeOption
@@ -42,10 +57,12 @@ import com.yuzlyn.mdeditor.data.settings.HomeTarget
 import com.yuzlyn.mdeditor.data.settings.ThemeMode
 import com.yuzlyn.mdeditor.data.fonts.FontStore
 import com.yuzlyn.mdeditor.ui.component.Appear
+import com.yuzlyn.mdeditor.ui.component.ConstrainedContent
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.i18n.label
 import com.yuzlyn.mdeditor.ui.theme.Space
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +80,38 @@ fun SettingsScreen(
 ) {
     val strings = LocalAppStrings.current
     val systemDark = isSystemInDarkTheme()
+
+    // 書庫掃描只在這裡跑。每一次掃描都要向每個連結的資料夾（可能在雲端硬碟）
+    // 列一遍目錄，放進書庫頁面的進場路徑裡太慢——那一頁現在只讀已經存好的書目。
+    val context = LocalContext.current
+    val bookLibrary = remember { BookLibrary(context.applicationContext) }
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    var scanning by remember { mutableStateOf(false) }
+    // 掃描進行中把右邊的箭頭換成轉圈：雲端資料夾可能要等好幾秒，
+    // 沒有回饋的話使用者會以為按了沒反應，然後再按一次。
+    val scanTrailing: (@Composable () -> Unit)? = if (scanning) {
+        { CircularProgressIndicator(modifier = Modifier.size(Space.s250), strokeWidth = 2.dp) }
+    } else {
+        null
+    }
+
+    fun scanLibrary() {
+        if (scanning) return
+        scope.launch {
+            scanning = true
+            val result = runCatching { bookLibrary.rescan() }
+            scanning = false
+            snackbar.showSnackbar(
+                result.fold(
+                    onSuccess = { added ->
+                        if (added > 0) strings.librarySyncAdded(added) else strings.libraryScanNothing
+                    },
+                    onFailure = { strings.libraryScanFailed }
+                )
+            )
+        }
+    }
 
     val themeSubtitle = when (settings.themeMode) {
         ThemeMode.MONET -> strings.monet
@@ -103,16 +152,20 @@ fun SettingsScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbar) },
         containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Space.s200, vertical = Space.s200),
-            verticalArrangement = Arrangement.spacedBy(Space.s400)
+        ConstrainedContent(
+            maxWidth = 720.dp,
+            modifier = Modifier.padding(innerPadding)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Space.s200, vertical = Space.s200),
+                verticalArrangement = Arrangement.spacedBy(Space.s400)
+            ) {
             Appear(index = 0) {
 SegmentedListGroup(
                     title = strings.theme,
@@ -170,9 +223,8 @@ SegmentedListGroup(
                             trailing = {
                                 Switch(
                                     checked = settings.showLineNumbers,
-                                    onCheckedChange = {
-                                        onChange(settings.copy(showLineNumbers = it))
-                                    }
+                                    // 整列是唯一操作入口，避免 Switch 與整列各播一次反饋。
+                                    onCheckedChange = null
                                 )
                             },
                             onClick = {
@@ -201,15 +253,15 @@ SegmentedListGroup(
                             title = label,
                             subtitle = if (selected) strings.startPageHint else "",
                             showChevron = false,
+                            enabled = !selected,
+                            dimWhenDisabled = false,
                             // 互斥的開關：打開一個，另一個自己關掉。
                             // 關掉「正在用的那一個」不做任何事——啟動頁總得有一個，
                             // 讓它真的可以關成空的，下次開 app 就不知道該去哪了。
                             trailing = {
                                 Switch(
                                     checked = selected,
-                                    onCheckedChange = { on ->
-                                        if (on && !selected) onChange(settings.copy(homeTarget = target))
-                                    }
+                                    onCheckedChange = null
                                 )
                             },
                             onClick = { if (!selected) onChange(settings.copy(homeTarget = target)) }
@@ -218,9 +270,27 @@ SegmentedListGroup(
                 )
             }
 
+            // 書庫掃描：連結的資料夾只在這裡掃。書庫頁每次開啟都重掃雲端資料夾太慢，
+            // 而且書目本來就存著，掃與不掃看到的幾乎一樣。
+            Appear(index = 3) {
+SegmentedListGroup(
+                    title = strings.library,
+                    rows = listOf(
+                        SettingsRow(
+                            icon = Icons.Default.Refresh,
+                            title = strings.libraryScan,
+                            subtitle = strings.libraryScanHint,
+                            showChevron = false,
+                            trailing = scanTrailing,
+                            onClick = { scanLibrary() }
+                        )
+                    )
+                )
+            }
+
             // 書寫輔助線只有三個值，直接列出來比再開一層子頁面快；
             // 這裡是「新筆記的預設」，單篇要改在編輯頁的「更多」裡。
-            Appear(index = 3) {
+            Appear(index = 4) {
 SegmentedListGroup(
                     title = strings.writingGuide,
                     rows = listOf(
@@ -243,16 +313,7 @@ SegmentedListGroup(
                             trailing = {
                                 Switch(
                                     checked = selected,
-                                    onCheckedChange = { on ->
-                                        onChange(
-                                            settings.copy(
-                                                writingGuide = when {
-                                                    on -> guide.id
-                                                    else -> WritingGuide.NONE.id
-                                                }
-                                            )
-                                        )
-                                    }
+                                    onCheckedChange = null
                                 )
                             },
                             onClick = {
@@ -272,7 +333,7 @@ SegmentedListGroup(
 
             // 統計：主開關在子頁面裡，這裡只顯示狀態，不重複一個開關——
             // 兩個地方都能關的東西，遲早會出現「這裡是開、那裡是關」。
-            Appear(index = 4) {
+            Appear(index = 5) {
 SegmentedListGroup(
                     title = strings.stats,
                     rows = listOf(
@@ -290,7 +351,7 @@ SegmentedListGroup(
                 )
             }
 
-            Appear(index = 5) {
+            Appear(index = 6) {
 SegmentedListGroup(
                     title = strings.language,
                     rows = listOf(
@@ -310,12 +371,8 @@ SegmentedListGroup(
                     )
                 )
             }
-
-            Text(
-                text = strings.colorGuide,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            }
         }
     }
+
 }

@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.drawable.Drawable
 import android.util.Log
 import com.yuzlyn.mdeditor.data.settings.LauncherGlyph
 import com.yuzlyn.mdeditor.data.settings.SeedColor
@@ -57,6 +58,24 @@ object LauncherIcon {
         val index = LauncherPalette.nearestIndex(colors, primaryArgb)
         switchTo(context, "Launcher${glyph.aliasTag}${cells[index].ident}")
     }
+
+    /**
+     * 目前啟用中的那顆桌面圖示，畫成點陣給開屏用。
+     *
+     * 開屏標誌必須和使用者桌面上看到的那顆**完全一樣**：字形是他選的，底色是他那套配色
+     * （莫奈取色時是色輪上最近的一格）。自己用 `primary` 重畫一個圓底會差一階顏色，
+     * 從系統起始視窗交棒過來的那一下就會看見色塊跳動，所以直接把別名圖示點陣化。
+     *
+     * 找不到入口或解不出圖示時回 null，呼叫端退回用設定裡的字形自己畫。
+     */
+    fun currentIconDrawable(context: Context): Drawable? = runCatching {
+        val intent = Intent(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_LAUNCHER)
+            .setPackage(context.packageName)
+        val info = context.packageManager.queryIntentActivities(intent, 0).firstOrNull()
+            ?: return@runCatching null
+        info.loadIcon(context.packageManager)
+    }.getOrNull()
 
     private fun switchTo(context: Context, target: String) {
         val full = "${context.packageName}.$target"

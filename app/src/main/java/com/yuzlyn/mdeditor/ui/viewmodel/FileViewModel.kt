@@ -29,7 +29,6 @@ import com.yuzlyn.mdeditor.data.repository.NoteRepository
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
 import com.yuzlyn.mdeditor.data.settings.AppSettings
 import com.yuzlyn.mdeditor.data.settings.AppSettingsPreferences
-import com.yuzlyn.mdeditor.data.settings.HomeTarget
 import com.yuzlyn.mdeditor.data.stats.StatKind
 import com.yuzlyn.mdeditor.data.stats.StatsSnapshot
 import com.yuzlyn.mdeditor.data.stats.StatsStore
@@ -51,6 +50,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** 首份設定的原子快照：畫面與系統開屏永遠讀同一份 settings + loaded。 */
+data class AppSettingsState(
+    val settings: AppSettings = AppSettings(),
+    val loaded: Boolean = false
+)
 
 class FileViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -74,16 +79,31 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
      */
     val stats: StateFlow<StatsSnapshot> = statsStore.snapshot
 
-    val appSettings: StateFlow<AppSettings> = appSettingsPreferences.settings
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
+    private val _settingsState = MutableStateFlow(AppSettingsState())
 
-    /**
-     * 啟動頁：直接讀 DataStore 的第一份資料。
-     *
-     * 不能讀 [appSettings]——那是 `stateIn` 的 StateFlow，第一幀是預設值，
-     * 用它會變成「先畫筆記頁再跳書庫」。
-     */
-    suspend fun startPage(): HomeTarget = appSettingsPreferences.settings.first().homeTarget
+    /** 系統開屏與 Compose 共用這一份快照，杜絕 loaded 與實際主題不同步。 */
+    val settingsState: StateFlow<AppSettingsState> = _settingsState.asStateFlow()
+
+    /** 其他頁面只需要設定值；啟動流程請讀 [settingsState]，不要另拆 loaded。 */
+    val appSettings: StateFlow<AppSettings> = settingsState
+        .map { it.settings }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
+
+    init {
+        viewModelScope.launch {
+            appSettingsPreferences.settings.collect { settings ->
+                _settingsState.value = AppSettingsState(settings = settings, loaded = true)
+            }
+        }
+        viewModelScope.launch {
+            // DataStore 損壞或長時間沒有首個 emission 時，以預設設定放行；
+            // 若真實設定稍後讀到，同一個原子快照仍會完整取代預設值。
+            kotlinx.coroutines.delay(SETTINGS_TIMEOUT_MS)
+            if (!_settingsState.value.loaded) {
+                _settingsState.value = AppSettingsState(loaded = true)
+            }
+        }
+    }
 
     fun updateAppSettings(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { appSettingsPreferences.update(transform) }
@@ -314,8 +334,16 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val displayName = withContext(Dispatchers.IO) { queryDisplayName(source) }
             // 先看檔名，再問檔頭：沒有副檔名的書也要進閱讀器，不能被當純文字匯入。
+            //
+            // 但「副檔名已經說是匯入格式」時不能再問檔頭：DOCX 也是 PK 開頭的 zip，
+            // 舊的 sniff 會把它當成 EPUB 丟進閱讀器，結果只看到「這個檔案不是 EPUB」。
+            // docx/pdf/html/md/txt 一律走匯入；只有名字認不出來時才靠檔頭猜。
+            val recognizedDocument = ImportFormat.fromFileName(displayName) != null
             val isBook = BookFormat.fromFileName(displayName) != null ||
-                    withContext(Dispatchers.IO) { BookOpener.sniff(getApplication(), source) } != null
+                    (!recognizedDocument &&
+                            withContext(Dispatchers.IO) {
+                                BookOpener.sniff(getApplication(), source)
+                            } != null)
             if (isBook) {
                 onBook(source.toString(), displayName)
                 return@launch
@@ -521,6 +549,9 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
         private const val TAG = "MDEditor_Debug"
     }
 }
+
+/** 首份設定讀取上限；逾時由 ViewModel 以原子快照放行預設設定。 */
+private const val SETTINGS_TIMEOUT_MS = 1_500L
 
 /** 連續輸入算成一次編輯的冷卻時間。 */
 private const val EDIT_COOLDOWN_MS = 3 * 60 * 1000L

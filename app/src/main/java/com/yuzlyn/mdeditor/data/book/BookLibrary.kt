@@ -53,7 +53,12 @@ data class ShelfFolder(
     /** 資料夾顯示名稱（取 SAF 給的名字，取不到就退回 Uri 末段）。 */
     val name: String,
     val addedAt: Long,
-    /** 上次掃描時間，用來避免每次進頁面都重掃雲端硬碟。 */
+    /**
+     * 最近一次掃描的時間。
+     *
+     * 掃描改成手動之後它不再是節流依據，留著是因為「這本書是什麼時候被收進來的」
+     * 對照起來有用，也方便日後在界面上寫「上次掃描於 …」。
+     */
     val lastScanAt: Long = 0L
 ) {
     val uri: Uri get() = Uri.parse(treeUri)
@@ -214,20 +219,28 @@ class BookLibrary(context: Context) {
     }
 
     /**
-     * 統一重新讀取：本機書庫目錄 + 所有登記過的資料夾。
+     * 完整重新讀取：本機書庫目錄 + 所有登記過的資料夾。
      *
-     * [minIntervalMs] 是節流：進頁面時只掃「上次掃描已經超過這麼久」的資料夾，
-     * 雲端硬碟授權的資料夾列一次要幾百毫秒，每幀都掃會卡。
+     * 這是**手動**動作，入口在設定頁。以前它掛在書庫頁的進場路徑上，每次進去都要
+     * 向每個 SAF 資料夾（可能是雲端硬碟）列一遍目錄，慢的時候整頁卡著等；
+     * 而書目本來就存在裝置上，掃與不掃看到的幾乎一樣。
      */
-    suspend fun rescan(minIntervalMs: Long = 0L): Int = withContext(Dispatchers.IO) {
+    suspend fun rescan(): Int = withContext(Dispatchers.IO) {
         var added = rescanLocal()
-        val now = System.currentTimeMillis()
         folders().forEach { folder ->
-            if (minIntervalMs > 0 && now - folder.lastScanAt < minIntervalMs) return@forEach
             added += runCatching { scanFolder(folder) }.getOrDefault(0)
         }
         added
     }
+
+    /**
+     * 只重讀本機書庫目錄，不碰外部資料夾。
+     *
+     * 進書庫時走這一個：`filesDir/books` 列一次目錄是毫秒級的事，使用者自己用
+     * 檔案管理器丟進來的書照樣會出現；而連結的 SAF 資料夾（尤其雲端硬碟）
+     * 列一次要幾百毫秒、還可能卡在網路上，那件事改成設定頁裡的手動動作，見 [rescan]。
+     */
+    suspend fun refreshLocal(): Int = withContext(Dispatchers.IO) { rescanLocal() }
 
     /** 目錄裡有、但還沒登記的檔案（使用者自己用檔案管理器丟進來的）。 */
     private fun rescanLocal(): Int {

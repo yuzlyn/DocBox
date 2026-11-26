@@ -11,7 +11,9 @@ import com.yuzlyn.mdeditor.data.book.ReaderPaths
 import com.yuzlyn.mdeditor.data.book.ReaderStyle
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -202,5 +204,33 @@ class BookParserTest {
         assertEquals(BookFormat.EPUB, BookFormat.sniff(sample("sample.epub")))
         assertEquals(BookFormat.MOBI, BookFormat.sniff(sample("sample.mobi")))
         assertEquals(BookFormat.AZW3, BookFormat.sniff(sample("sample.azw3")))
+    }
+
+    /**
+     * DOCX 也是 PK 開頭的 zip，不能只憑前兩個位元組就當成 EPUB。
+     * 這裡刻意做一個「像 DOCX 的 zip 頭」：有 [Content_Types].xml、沒有 epub 的 mimetype。
+     */
+    @Test
+    fun `zip 开头但沒有 epub mimetype 不算書`() {
+        val head = ByteArray(80)
+        head[0] = 'P'.code.toByte()
+        head[1] = 'K'.code.toByte()
+        head[2] = 3
+        head[3] = 4
+        "[Content_Types].xml".toByteArray(Charsets.US_ASCII).copyInto(head, 30)
+        assertNull(BookFormat.sniffHead(head))
+    }
+
+    /** 標準 EPUB 的 mimetype 條目落在前 80 個位元組內， sniffHead 仍然要認得。 */
+    @Test
+    fun `epub mimetype 開頭仍然認得`() {
+        val head = ByteArray(80)
+        head[0] = 'P'.code.toByte()
+        head[1] = 'K'.code.toByte()
+        head[2] = 3
+        head[3] = 4
+        "mimetype".toByteArray(Charsets.US_ASCII).copyInto(head, 30)
+        "application/epub+zip".toByteArray(Charsets.US_ASCII).copyInto(head, 38)
+        assertEquals(BookFormat.EPUB, BookFormat.sniffHead(head))
     }
 }

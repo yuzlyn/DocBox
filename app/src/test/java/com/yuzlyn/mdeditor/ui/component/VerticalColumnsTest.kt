@@ -314,4 +314,30 @@ class VerticalColumnsTest {
         assertEquals(3, snapSelection(value).selection.start)
     }
 
+    @Test
+    fun `長按只選中按住的那一行`() {
+        val text = "一二三四五六七八"
+        val columns = buildVerticalColumns(text, rows = 4)
+
+        // 一欄就是一行：選取範圍是欄首到欄尾，不含換行符。
+        assertEquals(0 to 4, anchoredLineRange(columns, 0, 0))
+        assertEquals(4 to 8, anchoredLineRange(columns, 1, 1))
+    }
+
+    @Test
+    fun `拖到別的欄會把中間的行一起圈進來`() {
+        val text = "一二三四五六七八"
+        val columns = buildVerticalColumns(text, rows = 4)
+
+        // 往後拖（左邊）與往前拖（右邊）都應該得到同一個由小到大的範圍。
+        assertEquals(0 to 8, anchoredLineRange(columns, 0, 1))
+        assertEquals(0 to 8, anchoredLineRange(columns, 1, 0))
+    }
+
+    @Test
+    fun `空內容沒有可選的行`() {
+        val columns = buildVerticalColumns("", rows = 4)
+
+        assertEquals(null, anchoredLineRange(columns, 0, 0))
+    }
 }

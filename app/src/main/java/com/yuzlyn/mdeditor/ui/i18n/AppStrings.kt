@@ -61,6 +61,15 @@ class AppStrings {
     lateinit var duplicate: String
     lateinit var find: String
     lateinit var cancel: String
+    /** 直排編輯器長按選取後的工具列：複製。 */
+    lateinit var copySelection: String
+    /** 直排編輯器長按選取後的工具列：全選。 */
+    lateinit var selectAll: String
+    /** 直排編輯器選取工具列：剪下、貼上（系統工具列被關掉，得自己給）。 */
+    lateinit var cutSelection: String
+    lateinit var pasteSelection: String
+    /** 複製完成後工具列上的短暫回饋。 */
+    lateinit var copied: String
     lateinit var done: String
     lateinit var create: String
     lateinit var newNote: String
@@ -95,7 +104,6 @@ class AppStrings {
     lateinit var glyphLusitu: String
     lateinit var glyphShuowengu: String
     lateinit var glyphShuowenzhu: String
-    lateinit var colorGuide: String
     lateinit var about: String
     lateinit var back: String
     lateinit var clear: String
@@ -181,15 +189,20 @@ class AppStrings {
     lateinit var readerModeScrollHorizontal: String
     lateinit var readerLineHeight: String
     lateinit var readerMargin: String
+    /** 彎引號改排直角引號的開關標題。 */
+    lateinit var readerCornerQuotes: String
+    /** 上面那個開關的說明，示範兩種引號長什麼樣。 */
+    lateinit var readerCornerQuotesHint: String
 
     /** 書庫（匯入的電子書存放處）。 */
     lateinit var library: String
     lateinit var libraryEmpty: String
-    lateinit var libraryEmptyHint: String
     /** 從檔案匯入一本書。 */
     lateinit var libraryImport: String
     /** 從整個資料夾匯入。 */
     lateinit var libraryImportFolder: String
+    /** 匯入失敗又沒有具體原因時的一句話。 */
+    lateinit var libraryImportFailed: String
     /** 書庫頂欄的搜尋提示（搜書名／作者）。 */
     lateinit var bookSearch: String
     /** 書庫裡「不篩資料夾」的那一檔。 */
@@ -209,6 +222,14 @@ class AppStrings {
     lateinit var libraryNoFolderYet: String
     /** 一次同步新收進來的本數。 */
     lateinit var librarySyncAdded: (Int) -> String
+    /** 設定 → 書庫：手動掃描連結的資料夾。 */
+    lateinit var libraryScan: String
+    /** 掃描那一行的說明：書庫不會每次開啟都重掃。 */
+    lateinit var libraryScanHint: String
+    /** 掃描完一本新書都沒有。 */
+    lateinit var libraryScanNothing: String
+    /** 掃描失敗（資料夾授權被收回、雲端讀不到）。 */
+    lateinit var libraryScanFailed: String
     /** 資料夾授權失效（被系統收回、或被使用者移除）。 */
     lateinit var libraryFolderDenied: String
     /** 設定 → 啟動頁。 */
@@ -247,7 +268,6 @@ class AppStrings {
     lateinit var statsRankingBooks: String
     lateinit var statsRankingDocs: String
     lateinit var statsEmpty: String
-    lateinit var statsEmptyHint: String
     lateinit var statsDisabled: String
     lateinit var statsDisabledHint: String
     lateinit var statsEnable: String
@@ -400,6 +420,8 @@ class AppStrings {
     lateinit var previewCodeHighlight: String
     lateinit var previewHeadingAnchors: String
     lateinit var previewMath: String
+    /** 預覽把中文彎引號排成直角引號的開關。 */
+    lateinit var previewCornerQuotes: String
     lateinit var previewToc: String
 
     /** PDF 檢視頁。 */
@@ -452,6 +474,7 @@ class AppStrings {
     lateinit var fontSizeStandard: String
     lateinit var fontSizeLarge: String
     lateinit var fontSizeHuge: String
+
 }
 
 val ZhTwStrings = AppStrings().apply {
@@ -501,6 +524,11 @@ val ZhTwStrings = AppStrings().apply {
     duplicate = "建立副本"
     find = "尋找"
     cancel = "取消"
+    copySelection = "複製"
+    selectAll = "全選"
+    cutSelection = "剪下"
+    pasteSelection = "貼上"
+    copied = "已複製"
     done = "完成"
     create = "建立"
     newNote = "新建筆記"
@@ -530,7 +558,6 @@ val ZhTwStrings = AppStrings().apply {
     glyphLusitu = "魯大司徒"
     glyphShuowengu = "說文古文"
     glyphShuowenzhu = "說文竹部"
-    colorGuide = "莫奈取色會在 Android 12 以上直接採用系統壁紙配色；自訂莫奈色以所選種子色派生 Expressive 色票，對比度固定為 0.5。所有介面顏色都使用 Material 3 的 color role，不會寫死十六進位色值。"
     about = "關於"
     back = "返回"
     clear = "清除"
@@ -606,11 +633,13 @@ val ZhTwStrings = AppStrings().apply {
     readerModeScrollHorizontal = "左右滑動"
     readerLineHeight = "行距"
     readerMargin = "頁邊留白"
+    readerCornerQuotes = "直角引號"
+    readerCornerQuotesHint = "把 “…” 排成「…」"
     library = "書庫"
     libraryEmpty = "書庫是空的"
-    libraryEmptyHint = "用上面的「匯入」把電子書放進來。書會複製到 App 自己的目錄，離開閱讀器也不會消失。"
     libraryImport = "匯入書籍"
     libraryImportFolder = "匯入資料夾"
+    libraryImportFailed = "無法匯入這本書"
     bookSearch = "搜尋書名或作者"
     libraryAllBooks = "全部圖書"
     libraryFolders = "資料夾"
@@ -619,6 +648,10 @@ val ZhTwStrings = AppStrings().apply {
     libraryLocalShelf = "本機書庫"
     libraryFolderBooks = { "$it 本" }
     librarySyncAdded = { "新收進 $it 本" }
+    libraryScan = "掃描資料夾"
+    libraryScanHint = "檢查連結的資料夾有沒有新書；書庫不會每次開啟都重掃。"
+    libraryScanNothing = "沒有新書"
+    libraryScanFailed = "掃描失敗，資料夾授權可能已失效"
     libraryFolderHint = "資料夾裡的新書會自動收進書庫，不必一本一本匯入。"
     libraryNoFolderYet = "還沒有登記資料夾"
     libraryFolderDenied = "資料夾授權失效，請重新新增"
@@ -650,7 +683,6 @@ val ZhTwStrings = AppStrings().apply {
     statsRankingBooks = "書籍"
     statsRankingDocs = "文件"
     statsEmpty = "還沒有紀錄"
-    statsEmptyHint = "打開一本書，或編輯一份筆記，這裡就會開始累積。"
     statsDisabled = "統計已關閉"
     statsDisabledHint = "關掉之後不會記錄任何閱讀或編輯。你隨時可以在設定裡重新打開。"
     statsEnable = "開啟統計"
@@ -789,6 +821,7 @@ val ZhTwStrings = AppStrings().apply {
     previewCodeHighlight = "程式碼高亮"
     previewHeadingAnchors = "標題錨點"
     previewMath = "數學公式"
+    previewCornerQuotes = "直角引號"
     previewToc = "目錄"
     pdfOpenFailed = "無法開啟這個 PDF"
     pdfImportAsNote = "匯入為筆記"
@@ -824,6 +857,7 @@ val ZhTwStrings = AppStrings().apply {
     fontSizeStandard = "標準"
     fontSizeLarge = "大"
     fontSizeHuge = "超大"
+
 }
 
 val ZhCnStrings = AppStrings().apply {
@@ -873,6 +907,11 @@ val ZhCnStrings = AppStrings().apply {
     duplicate = "创建副本"
     find = "查找"
     cancel = "取消"
+    copySelection = "复制"
+    selectAll = "全选"
+    cutSelection = "剪切"
+    pasteSelection = "粘贴"
+    copied = "已复制"
     done = "完成"
     create = "创建"
     newNote = "新建笔记"
@@ -902,7 +941,6 @@ val ZhCnStrings = AppStrings().apply {
     glyphLusitu = "鲁大司徒"
     glyphShuowengu = "说文古文"
     glyphShuowenzhu = "说文竹部"
-    colorGuide = "莫奈取色会在 Android 12 及以上直接采用系统壁纸配色；自定义莫奈色以所选种子色派生 Expressive 色板，对比度固定为 0.5。所有界面颜色都使用 Material 3 的 color role，不会写死十六进制色值。"
     about = "关于"
     back = "返回"
     clear = "清除"
@@ -978,11 +1016,13 @@ val ZhCnStrings = AppStrings().apply {
     readerModeScrollHorizontal = "左右滑动"
     readerLineHeight = "行距"
     readerMargin = "页边留白"
+    readerCornerQuotes = "直角引号"
+    readerCornerQuotesHint = "把 “…” 排成「…」"
     library = "书库"
     libraryEmpty = "书库是空的"
-    libraryEmptyHint = "用上面的「导入」把电子书放进来。书会复制到 App 自己的目录，离开阅读器也不会消失。"
     libraryImport = "导入书籍"
     libraryImportFolder = "导入文件夹"
+    libraryImportFailed = "无法导入这本书"
     bookSearch = "搜索书名或作者"
     libraryAllBooks = "全部图书"
     libraryFolders = "文件夹"
@@ -991,6 +1031,10 @@ val ZhCnStrings = AppStrings().apply {
     libraryLocalShelf = "本机书库"
     libraryFolderBooks = { "$it 本" }
     librarySyncAdded = { "新收进 $it 本" }
+    libraryScan = "扫描文件夹"
+    libraryScanHint = "检查链接的文件夹有没有新书；书库不会每次打开都重扫。"
+    libraryScanNothing = "没有新书"
+    libraryScanFailed = "扫描失败，文件夹授权可能已失效"
     libraryFolderHint = "文件夹里的新书会自动收进书库，不必一本一本导入。"
     libraryNoFolderYet = "还没有登记文件夹"
     libraryFolderDenied = "文件夹授权失效，请重新添加"
@@ -1022,7 +1066,6 @@ val ZhCnStrings = AppStrings().apply {
     statsRankingBooks = "书籍"
     statsRankingDocs = "文件"
     statsEmpty = "还没有记录"
-    statsEmptyHint = "打开一本书，或编辑一份笔记，这里就会开始累积。"
     statsDisabled = "统计已关闭"
     statsDisabledHint = "关掉之后不会记录任何阅读或编辑。你随时可以在设置里重新打开。"
     statsEnable = "开启统计"
@@ -1161,6 +1204,7 @@ val ZhCnStrings = AppStrings().apply {
     previewCodeHighlight = "代码高亮"
     previewHeadingAnchors = "标题锚点"
     previewMath = "数学公式"
+    previewCornerQuotes = "直角引号"
     previewToc = "目录"
     pdfOpenFailed = "无法打开这个 PDF"
     pdfImportAsNote = "导入为笔记"
@@ -1196,6 +1240,7 @@ val ZhCnStrings = AppStrings().apply {
     fontSizeStandard = "标准"
     fontSizeLarge = "大"
     fontSizeHuge = "超大"
+
 }
 
 val EnUsStrings = AppStrings().apply {
@@ -1245,6 +1290,11 @@ val EnUsStrings = AppStrings().apply {
     duplicate = "Duplicate"
     find = "Find"
     cancel = "Cancel"
+    copySelection = "Copy"
+    selectAll = "Select all"
+    cutSelection = "Cut"
+    pasteSelection = "Paste"
+    copied = "Copied"
     done = "Done"
     create = "Create"
     newNote = "New note"
@@ -1274,7 +1324,6 @@ val EnUsStrings = AppStrings().apply {
     glyphLusitu = "Dasitu"
     glyphShuowengu = "Guwen"
     glyphShuowenzhu = "Zhubu"
-    colorGuide = "Monet uses the system wallpaper palette on Android 12 and above. Custom Monet derives an Expressive palette from the selected seed color with a fixed 0.5 contrast level. Every UI color maps to a Material 3 color role — no hardcoded hex values."
     about = "About"
     back = "Back"
     clear = "Clear"
@@ -1291,7 +1340,7 @@ val EnUsStrings = AppStrings().apply {
     nickname = "Nickname"
     email = "Email"
     github = "GitHub"
-    githubHint = "Just the username — it becomes github.com/…"
+    githubHint = "Just the username. It becomes github.com/…"
     githubPreview = { handle -> "Shared card shows github.com/$handle" }
     avatar = "Avatar"
     uploadAvatar = "Upload avatar"
@@ -1312,7 +1361,7 @@ val EnUsStrings = AppStrings().apply {
     noteBackgroundPage = "Note background"
     noteBackgroundDefault = "Default (Monet)"
     noteBackgroundColor = "Solid colour"
-    noteBackgroundEmpty = "No images yet — tap the plus to pick one."
+    noteBackgroundEmpty = "No images yet. Tap the plus to pick one."
     noteBackgroundImport = "Import image"
     noteBackgroundDeleteTitle = "Delete image?"
     noteBackgroundDeleteMessage = { name -> "“$name” will be removed from the library. You can import it again later." }
@@ -1350,11 +1399,13 @@ val EnUsStrings = AppStrings().apply {
     readerModeScrollHorizontal = "Scroll ↔"
     readerLineHeight = "Line spacing"
     readerMargin = "Margins"
+    readerCornerQuotes = "Corner quotes"
+    readerCornerQuotesHint = "Set “…” as 「…」"
     library = "Library"
     libraryEmpty = "Your library is empty"
-    libraryEmptyHint = "Use Import above to add ebooks. They are copied into the app so they stay after you leave the reader."
     libraryImport = "Import book"
     libraryImportFolder = "Import folder"
+    libraryImportFailed = "Couldn't import this book"
     bookSearch = "Search books"
     libraryAllBooks = "All books"
     libraryFolders = "Folders"
@@ -1363,9 +1414,13 @@ val EnUsStrings = AppStrings().apply {
     libraryLocalShelf = "On this device"
     libraryFolderBooks = { "$it books" }
     librarySyncAdded = { "$it books added" }
-    libraryFolderHint = "New files in a folder are added to your library automatically — no importing one by one."
+    libraryScan = "Scan folders"
+    libraryScanHint = "Look for new books in linked folders. The library no longer rescans every time you open it."
+    libraryScanNothing = "No new books"
+    libraryScanFailed = "Scan failed. A folder permission may have expired"
+    libraryFolderHint = "New files in a folder are added to your library automatically. No importing one by one."
     libraryNoFolderYet = "No folders added yet"
-    libraryFolderDenied = "Folder access revoked — add it again"
+    libraryFolderDenied = "Folder access revoked. Add it again"
     startPage = "Start page"
     startPageHint = "Where the app opens next time"
     startPageNotes = "All notes"
@@ -1387,14 +1442,13 @@ val EnUsStrings = AppStrings().apply {
     statsDistribution = "Daily breakdown"
     statsMonthly = "Monthly breakdown"
     statsActivity = "Activity"
-    statsActivityHint = "One square per day — the deeper the colour, the more you read and wrote."
+    statsActivityHint = "One square per day. The deeper the colour, the more you read and wrote."
     statsLess = "Less"
     statsMore = "More"
     statsRanking = "Leaderboard"
     statsRankingBooks = "Books"
     statsRankingDocs = "Documents"
     statsEmpty = "Nothing recorded yet"
-    statsEmptyHint = "Open a book or edit a note and this page starts filling up."
     statsDisabled = "Stats are off"
     statsDisabledHint = "Nothing is recorded while this is off. Turn it back on in Settings whenever you like."
     statsEnable = "Turn on"
@@ -1429,7 +1483,7 @@ val EnUsStrings = AppStrings().apply {
     statsGreetingGuest = "Hi there"
     statsGreetingHint = "What will you write today?"
     cardSectionTitle = "Personal card"
-    cardNotSet = "Not set yet — tap the avatar at the top right"
+    cardNotSet = "Not set yet. Tap the avatar at the top right"
     cardAllOff = "All fields are turned off"
     cardNotAttached = "Not attached this time"
     cardPositionLabel = "Position"
@@ -1446,9 +1500,9 @@ val EnUsStrings = AppStrings().apply {
     authorEmail = "Email"
     authorGithub = "GitHub"
     authorRepo = "Repository"
-    authorBio = "Software engineering student at Wuhan University of Technology — feedback and support are always welcome."
+    authorBio = "Software engineering student at Wuhan University of Technology. Feedback and support are always welcome."
     authorSupportTitle = "Support the author"
-    authorSupportEntry = "WeChat Pay and Alipay codes — either one works"
+    authorSupportEntry = "WeChat Pay and Alipay codes. Either one works"
     authorSupportLead = "Both codes are here; either one works. Tap to enlarge."
     authorSupportWechat = "WeChat Pay"
     authorSupportAlipay = "Alipay"
@@ -1456,7 +1510,7 @@ val EnUsStrings = AppStrings().apply {
     bookErrUnknownFormat = "Could not recognise this file’s format"
     bookErrInvalidPath = "That file path is not valid"
     bookErrFileNotFound = "That file could not be found"
-    bookErrFileUnreadable = "Could not read this file — access may have expired"
+    bookErrFileUnreadable = "Could not read this file. Access may have expired"
     bookErrFileEmpty = "This file is empty"
     bookErrFileTooSmall = "The file is too small to be a complete e-book"
     bookErrNotEpub = "This file is not an EPUB"
@@ -1468,22 +1522,22 @@ val EnUsStrings = AppStrings().apply {
     bookErrChapterMissing = "That chapter does not exist"
     bookErrChapterUnreadable = "The chapter file could not be read"
     bookErrDrm = "This book is DRM-protected and cannot be opened"
-    bookErrCorrupt = "The file structure is incomplete — the download may be truncated"
+    bookErrCorrupt = "The file structure is incomplete. The download may be truncated"
     bookErrCompression = "This compression method is not supported"
     bookErrParse = "This book could not be parsed"
     bookErrOpen = "Could not open this file"
     importErrUnreadable = "Could not read this file"
-    importErrPdfNoExtension = "This PDF has no extension — check that the file is complete"
+    importErrPdfNoExtension = "This PDF has no extension. Check that the file is complete"
     importErrWord = "This is not a readable Word (.docx) document"
     importErrEmpty = "This file has no content"
     importErrHtmlEmpty = "This HTML has no text to import"
-    importErrEbook = "This is an e-book — open it in the reader instead"
+    importErrEbook = "This is an e-book. Open it in the reader instead"
     importErrUnsupported = "This file format is not supported"
-    importErrPdfUnreadable = "Could not read this PDF — check that the file is complete"
-    importErrPdfNoText = "This PDF has no text layer — most likely a scan"
+    importErrPdfUnreadable = "Could not read this PDF. Check that the file is complete"
+    importErrPdfNoText = "This PDF has no text layer. Most likely a scan"
     importErrPdfParse = "Could not parse this PDF"
-    imageErrNotReady = "This note is still loading — try again in a moment"
-    imageErrPermission = "No permission to read that image — pick it again"
+    imageErrNotReady = "This note is still loading. Try again in a moment"
+    imageErrPermission = "No permission to read that image. Pick it again"
     imageErrUnknown = "Could not insert the image"
     imageErrNotWritable = "This note is not a writable file"
     imageErrFormat = "Could not recognise that image format"
@@ -1533,6 +1587,7 @@ val EnUsStrings = AppStrings().apply {
     previewCodeHighlight = "Code highlighting"
     previewHeadingAnchors = "Heading anchors"
     previewMath = "Math"
+    previewCornerQuotes = "Corner quotes"
     previewToc = "Contents"
     pdfOpenFailed = "Could not open this PDF"
     pdfImportAsNote = "Import as note"
@@ -1568,6 +1623,7 @@ val EnUsStrings = AppStrings().apply {
     fontSizeStandard = "Standard"
     fontSizeLarge = "Large"
     fontSizeHuge = "Extra large"
+
 }
 
 val FrFrStrings = AppStrings().apply {
@@ -1617,6 +1673,11 @@ val FrFrStrings = AppStrings().apply {
     duplicate = "Dupliquer"
     find = "Rechercher"
     cancel = "Annuler"
+    copySelection = "Copier"
+    selectAll = "Tout sélectionner"
+    cutSelection = "Couper"
+    pasteSelection = "Coller"
+    copied = "Copié"
     done = "Terminé"
     create = "Créer"
     newNote = "Nouvelle note"
@@ -1646,7 +1707,6 @@ val FrFrStrings = AppStrings().apply {
     glyphLusitu = "Dasitu"
     glyphShuowengu = "Guwen"
     glyphShuowenzhu = "Zhubu"
-    colorGuide = "Monet utilise la palette du fond d'écran système sur Android 12 et versions ultérieures. Monet personnalisé dérive une palette Expressive de la couleur source choisie, avec un niveau de contraste fixé à 0,5. Toutes les couleurs de l'interface correspondent à un rôle Material 3 — aucune valeur hexadécimale codée en dur."
     about = "À propos"
     back = "Retour"
     clear = "Effacer"
@@ -1663,7 +1723,7 @@ val FrFrStrings = AppStrings().apply {
     nickname = "Pseudo"
     email = "E-mail"
     github = "GitHub"
-    githubHint = "Le nom d'utilisateur suffit — il devient github.com/…"
+    githubHint = "Le nom d'utilisateur suffit. Il devient github.com/…"
     githubPreview = { handle -> "La carte partagée affiche github.com/$handle" }
     avatar = "Avatar"
     uploadAvatar = "Importer un avatar"
@@ -1684,7 +1744,7 @@ val FrFrStrings = AppStrings().apply {
     noteBackgroundPage = "Fond de note"
     noteBackgroundDefault = "Par défaut (Monet)"
     noteBackgroundColor = "Couleur unie"
-    noteBackgroundEmpty = "Aucune image — touchez le plus pour en choisir une."
+    noteBackgroundEmpty = "Aucune image. Touchez le plus pour en choisir une."
     noteBackgroundImport = "Importer une image"
     noteBackgroundDeleteTitle = "Supprimer l'image ?"
     noteBackgroundDeleteMessage = { name -> "« $name » sera retirée de la bibliothèque. Vous pourrez la réimporter plus tard." }
@@ -1722,11 +1782,13 @@ val FrFrStrings = AppStrings().apply {
     readerModeScrollHorizontal = "Défiler ↔"
     readerLineHeight = "Interligne"
     readerMargin = "Marges"
+    readerCornerQuotes = "Guillemets"
+    readerCornerQuotesHint = "Afficher “…” sous la forme 「…」"
     library = "Bibliothèque"
     libraryEmpty = "Votre bibliothèque est vide"
-    libraryEmptyHint = "Utilisez Importer pour ajouter des livres. Ils sont copiés dans l'application et restent disponibles."
     libraryImport = "Importer un livre"
     libraryImportFolder = "Importer un dossier"
+    libraryImportFailed = "Impossible d'importer ce livre"
     bookSearch = "Rechercher des livres"
     libraryAllBooks = "Tous les livres"
     libraryFolders = "Dossiers"
@@ -1735,9 +1797,13 @@ val FrFrStrings = AppStrings().apply {
     libraryLocalShelf = "Sur cet appareil"
     libraryFolderBooks = { "$it livres" }
     librarySyncAdded = { "$it livres ajoutés" }
+    libraryScan = "Analyser les dossiers"
+    libraryScanHint = "Chercher les nouveaux livres dans les dossiers liés. La bibliothèque ne les analyse plus à chaque ouverture."
+    libraryScanNothing = "Aucun nouveau livre"
+    libraryScanFailed = "Échec de l'analyse. Une autorisation a peut-être expiré"
     libraryFolderHint = "Les nouveaux fichiers d'un dossier rejoignent la bibliothèque automatiquement."
     libraryNoFolderYet = "Aucun dossier ajouté"
-    libraryFolderDenied = "Accès au dossier révoqué — à rajouter"
+    libraryFolderDenied = "Accès au dossier révoqué. À rajouter"
     startPage = "Page d'accueil"
     startPageHint = "Page affichée au prochain lancement"
     startPageNotes = "Toutes les notes"
@@ -1766,7 +1832,6 @@ val FrFrStrings = AppStrings().apply {
     statsRankingBooks = "Livres"
     statsRankingDocs = "Documents"
     statsEmpty = "Rien d’enregistré"
-    statsEmptyHint = "Ouvrez un livre ou modifiez une note : cette page se remplira."
     statsDisabled = "Statistiques désactivées"
     statsDisabledHint = "Rien n’est enregistré tant que c’est désactivé. Réactivez-le dans Réglages."
     statsEnable = "Activer"
@@ -1801,7 +1866,7 @@ val FrFrStrings = AppStrings().apply {
     statsGreetingGuest = "Bonjour"
     statsGreetingHint = "Qu'allez-vous écrire aujourd'hui ?"
     cardSectionTitle = "Carte personnelle"
-    cardNotSet = "Pas encore remplie — touchez l'avatar en haut à droite"
+    cardNotSet = "Pas encore remplie. Touchez l'avatar en haut à droite"
     cardAllOff = "Tous les champs sont désactivés"
     cardNotAttached = "Non jointe cette fois"
     cardPositionLabel = "Position"
@@ -1818,9 +1883,9 @@ val FrFrStrings = AppStrings().apply {
     authorEmail = "E-mail"
     authorGithub = "GitHub"
     authorRepo = "Dépôt"
-    authorBio = "Étudiant en génie logiciel à l'Université de technologie de Wuhan — retours et soutien toujours bienvenus."
+    authorBio = "Étudiant en génie logiciel à l'Université de technologie de Wuhan. Retours et soutien toujours bienvenus."
     authorSupportTitle = "Soutenir l'auteur"
-    authorSupportEntry = "Codes WeChat Pay et Alipay — au choix"
+    authorSupportEntry = "Codes WeChat Pay et Alipay. Au choix"
     authorSupportLead = "Les deux codes sont ici, l'un ou l'autre fonctionne. Touchez pour agrandir."
     authorSupportWechat = "WeChat Pay"
     authorSupportAlipay = "Alipay"
@@ -1905,6 +1970,7 @@ val FrFrStrings = AppStrings().apply {
     previewCodeHighlight = "Coloration du code"
     previewHeadingAnchors = "Ancres des titres"
     previewMath = "Formules mathématiques"
+    previewCornerQuotes = "Guillemets"
     previewToc = "Sommaire"
     pdfOpenFailed = "Impossible d'ouvrir ce PDF"
     pdfImportAsNote = "Importer comme note"
@@ -1940,6 +2006,7 @@ val FrFrStrings = AppStrings().apply {
     fontSizeStandard = "Standard"
     fontSizeLarge = "Grande"
     fontSizeHuge = "Très grande"
+
 }
 
 fun AppLanguage.appStrings(): AppStrings = when (this.resolved()) {

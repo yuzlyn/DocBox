@@ -28,7 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.settings.AppLanguage
+import com.yuzlyn.mdeditor.ui.component.ConstrainedContent
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.i18n.PROJECT_REPO_URL
 import com.yuzlyn.mdeditor.ui.i18n.helpDoc
@@ -75,14 +77,17 @@ fun HelpScreen(
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Space.s200, vertical = Space.s200),
-            verticalArrangement = Arrangement.spacedBy(Space.s400)
+        ConstrainedContent(
+            maxWidth = 720.dp,
+            modifier = Modifier.padding(innerPadding)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Space.s200, vertical = Space.s200),
+                verticalArrangement = Arrangement.spacedBy(Space.s400)
+            ) {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s100)) {
                 Text(
                     text = strings.appName,
@@ -127,7 +132,8 @@ fun HelpScreen(
                                 Text(
                                     text = bullet,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
@@ -162,6 +168,7 @@ fun HelpScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
+            }
         }
     }
 }

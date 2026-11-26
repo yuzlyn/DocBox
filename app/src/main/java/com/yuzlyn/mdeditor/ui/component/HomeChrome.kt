@@ -1,16 +1,19 @@
 package com.yuzlyn.mdeditor.ui.component
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -19,9 +22,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,10 +41,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Note
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SaveAlt
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +56,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
@@ -54,6 +64,8 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +79,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.theme.Space
@@ -87,32 +100,43 @@ fun RailButton(
     onClick: () -> Unit,
     emphasized: Boolean = false
 ) {
-    val container = if (emphasized) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        // 本 App 的主題把 surface / surfaceContainer* 全部映射成同一個顏色，
-        // 用 container 色階會「有遮罩但看不見」。改用 onSurface 的淡色疊加，
-        // 任何背景、任何紙色下都保證有圓形底。
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-    }
-    val content = if (emphasized) {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val motion = MaterialTheme.motionScheme
+    // 選中／取消選中走 effects spring：顏色不能彈，換頁的那一下才不會「啪」地跳色。
+    val container by animateColorAsState(
+        targetValue = if (emphasized) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            // 本 App 的主題把 surface / surfaceContainer* 全部映射成同一個顏色，
+            // 用 container 色階會「有遮罩但看不見」。改用 onSurface 的淡色疊加，
+            // 任何背景、任何紙色下都保證有圓形底。
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+        },
+        animationSpec = motion.defaultEffectsSpec(),
+        label = "rail-container"
+    )
+    val content by animateColorAsState(
+        targetValue = if (emphasized) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = motion.defaultEffectsSpec(),
+        label = "rail-content"
+    )
+    // 側欄與頂欄的圓鈕共用同一個按壓語言：縮放和按鈕自己的 state layer 各司其職。
+    val interaction = remember { MutableInteractionSource() }
     FilledTonalIconButton(
         onClick = onClick,
-        modifier = Modifier.size(Space.s600),
+        modifier = Modifier
+            .size(Space.s600)
+            .pressScale(interactionSource = interaction),
+        interactionSource = interaction,
         colors = IconButtonDefaults.filledTonalIconButtonColors(
             containerColor = container,
             contentColor = content
         )
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = description,
-            modifier = Modifier.size(Space.s300)
-        )
+        AnimatedIcon(icon = icon, description = description, iconSize = Space.s300)
     }
 }
 
@@ -123,19 +147,106 @@ fun CircleIconButton(
     description: String,
     onClick: () -> Unit
 ) {
+    // 頂欄的排版／排序鈕與側欄同一套回縮，切到平板不會覺得換了一個元件。
+    val interaction = remember { MutableInteractionSource() }
     FilledTonalIconButton(
         onClick = onClick,
-        modifier = Modifier.size(Space.s400),
+        modifier = Modifier
+            .size(Space.s400)
+            .pressScale(interactionSource = interaction),
+        interactionSource = interaction,
         colors = IconButtonDefaults.filledTonalIconButtonColors(
             containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     ) {
+        AnimatedIcon(icon = icon, description = description, iconSize = Space.s200)
+    }
+}
+
+/**
+ * 圖示換相：排版鈕在「瀑布流／列表」之間切換時，兩個 Icon 交叉淡入淡出並略微縮放，
+ * 取代原本瞬間換圖的硬切。
+ *
+ * 出場用 fast effects（先清掉），入場用 default effects + default spatial；
+ * 不用 tween，速度差就是節奏。`SizeTransform(clip = false)` 讓 24dp/16dp 的
+ * 圖示在縮放過程不會被按鈕的內容槽裁掉。
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AnimatedIcon(icon: ImageVector, description: String, iconSize: Dp) {
+    val motion = MaterialTheme.motionScheme
+    AnimatedContent(
+        targetState = icon,
+        transitionSpec = {
+            (
+                fadeIn(motion.defaultEffectsSpec()) +
+                    scaleIn(initialScale = 0.72f, animationSpec = motion.defaultSpatialSpec())
+                ).togetherWith(
+                fadeOut(motion.fastEffectsSpec()) +
+                    scaleOut(targetScale = 0.72f, animationSpec = motion.fastSpatialSpec())
+                ).using(SizeTransform(clip = false))
+        },
+        label = "rail-icon"
+    ) { vector ->
         Icon(
-            imageVector = icon,
-            contentDescription = description,
-            modifier = Modifier.size(Space.s200)
+            imageVector = vector,
+            // 交叉淡出中的舊圖不再重複報讀，無障礙只留目前這一顆。
+            contentDescription = if (vector == icon) description else null,
+            modifier = Modifier.size(iconSize)
         )
+    }
+}
+
+/**
+ * 多選狀態的頂欄。
+ *
+ * 筆記頁與書庫頁共用同一個元件：左邊關閉、中間「已選 N 項」、右邊動作。
+ * 兩頁都可用的動作只有刪除，所以 delete 是固定參數；分享／匯出屬於筆記頁的
+ * 額外能力，放進 [secondaryActions] 插槽——書庫不傳，就不會出現按了沒用的圖示。
+ */
+@Composable
+fun SelectionTopBar(
+    count: Int,
+    onClose: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    secondaryActions: @Composable RowScope.() -> Unit = {}
+) {
+    val strings = LocalAppStrings.current
+    Surface(modifier = modifier, color = MaterialTheme.colorScheme.surface) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(Space.s800)
+                    .padding(horizontal = Space.s100),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = strings.cancel)
+                }
+                Text(
+                    text = strings.selectedCount(count),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                secondaryActions()
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = strings.delete,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(Space.s150))
+        }
     }
 }
 
@@ -251,8 +362,8 @@ private fun FabMenuItem(
 /**
  * 抽屜裡的一列。
  *
- * 抽屜的內容是固定的七列，不是依頁面拼出來的。既然內容固定，就用資料描述、
- * 一次畫完——手寫七段幾乎一樣的 NavigationDrawerItem，改一次順序就要動七個地方。
+ * 抽屜的內容是固定的幾列，不是依頁面拼出來的。既然內容固定，就用資料描述、
+ * 一次畫完——手寫好幾段幾乎一樣的 NavigationDrawerItem，改一次順序就要動好幾個地方。
  */
 private class DrawerEntry(
     val icon: ImageVector,
@@ -264,7 +375,7 @@ private class DrawerEntry(
 /**
  * 左側抽屜：整個 App 的主導覽。
  *
- * **內容永遠不變**：不論現在站在哪一頁，永遠是同一批七列、同一個順序。
+ * **內容永遠不變**：不論現在站在哪一頁，永遠是同一批列、同一個順序。
  * 前一版是兩個主頁各畫一份——筆記頁少「資料夾」、書庫頁少「筆記本」，
  * 切一次頁選單就矮一截、換一副樣子，看起來像在跳。導覽是「位置」不是「內容」，
  * 不該隨頁面變形，所以整份抽屜提到主頁之上，只畫一次。
@@ -278,7 +389,13 @@ private class DrawerEntry(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeDrawer(
-    open: Boolean,
+    /**
+     * 開關狀態用 State 傳進來，由這一層自己讀。
+     *
+     * 呼叫端（MainActivity）若直接讀值，開關抽屜就會重組整個主內容；
+     * 抽屜動畫的第一幀正好和整頁重組撞在一起，看起來就是卡一下。
+     */
+    open: State<Boolean>,
     notesSelected: Boolean,
     notebookSelected: Boolean,
     librarySelected: Boolean,
@@ -299,10 +416,11 @@ fun HomeDrawer(
 ) {
     val strings = LocalAppStrings.current
     val motion = MaterialTheme.motionScheme
+    val isOpen = open.value
 
     // 初值跟著當下的 open 走，不是寫死 0：這個節點只有在 NavEntry 重建時才重新
     // 建立，那一刻若抽屜是開著的，就該直接站在開啟的位置，而不是再滑進來一次。
-    val drawerProgress = remember { Animatable(if (open) 1f else 0f) }
+    val drawerProgress = remember { Animatable(if (isOpen) 1f else 0f) }
 
     // MD3 把動效拆成兩條軌道，抽屜正好各用一條：
     //   位置（translationX）→ defaultSpatialSpec，Expressive 的空間彈簧
@@ -311,20 +429,28 @@ fun HomeDrawer(
     //
     // 用彈簧而不是固定時長曲線還有第三個好處：開到一半又改主意時，它會帶著
     // 當下的速度轉向；tween 只能從 0 重跑一趟，看起來就是「頓一下」。
-    LaunchedEffect(open) {
+    LaunchedEffect(isOpen) {
         drawerProgress.animateTo(
-            targetValue = if (open) 1f else 0f,
+            targetValue = if (isOpen) 1f else 0f,
             animationSpec = motion.defaultSpatialSpec()
         )
     }
-    val scrimAlpha by animateFloatAsState(
-        targetValue = if (open) 1f else 0f,
-        animationSpec = motion.defaultEffectsSpec(),
-        label = "drawer-scrim"
-    )
+    // 遮罩用 effects spring：進場 default、退場 fast。MD3 的序列化做法是
+    // 「先清場再進場」——關閉時讓遮罩先退，抽屜還在滑的那幾幀就不會壓著一層暗幕。
+    val scrimAlpha = remember { Animatable(if (isOpen) 1f else 0f) }
+    LaunchedEffect(isOpen) {
+        scrimAlpha.animateTo(
+            targetValue = if (isOpen) 1f else 0f,
+            animationSpec = if (isOpen) {
+                motion.defaultEffectsSpec()
+            } else {
+                motion.fastEffectsSpec()
+            }
+        )
+    }
 
     // 模態抽屜開著時，返回鍵先收抽屜，而不是直接把整頁退掉。
-    BackHandler(enabled = open) { onDismiss() }
+    BackHandler(enabled = isOpen) { onDismiss() }
 
     // 這個鋪滿全屏的 Box 只在抽屜打開時才掛手勢節點。
     //
@@ -337,7 +463,7 @@ fun HomeDrawer(
         modifier = Modifier
             .fillMaxSize()
             .then(
-                if (open) {
+                if (isOpen) {
                     Modifier.pointerInput(Unit) {
                         val threshold = Space.s600.toPx()
                         var total = 0f
@@ -365,10 +491,10 @@ fun HomeDrawer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { alpha = scrimAlpha.coerceIn(0f, 1f) }
+                .graphicsLayer { alpha = scrimAlpha.value.coerceIn(0f, 1f) }
                 .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
                 .then(
-                    if (open) {
+                    if (isOpen) {
                         Modifier.clickable(
                             interactionSource = interaction,
                             indication = null,
@@ -405,7 +531,7 @@ fun HomeDrawer(
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
-                    // 橫屏手機只有 360dp 高，七列加標題放不下；
+                    // 橫屏手機只有 360dp 高，這幾列加標題放不下；
                     // 寧可整份抽屜可以捲，也不要最後兩列被切掉。
                     .verticalScroll(rememberScrollState())
                     .statusBarsPadding()
@@ -423,7 +549,7 @@ fun HomeDrawer(
                     )
                 )
 
-                // 固定內容。前五列是「去哪裡」，後三列是動作與設定。
+                // 固定內容。上面幾列是「去哪裡」（統計可關），下面四列是動作與設定。
                 // 統計接著書庫排在導覽組裡：它是第三個主頁，不是設定項。
                 val navEntries = buildList {
                     add(

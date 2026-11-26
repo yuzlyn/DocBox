@@ -1,11 +1,11 @@
 package com.yuzlyn.mdeditor.ui.component
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -174,6 +174,7 @@ internal fun buildHCellLayout(
  * 游標與點擊一律用「這個字實際排版出來的位置」反推，不做平均分配：
  * 英文單詞佔好幾格時，字母是連著寫的，按格數平均算，游標就會落在字母縫外。
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HorizontalCellText(
     layout: HCellLayout,
@@ -195,7 +196,8 @@ fun HorizontalCellText(
     onTap: ((Int) -> Unit)? = null
 ) {
     // 點一下會短暫冒出「游標手柄」：淡入 → 停一下 → 淡出。
-    // 曲線用 M3 的進出場（emphasized decelerate / accelerate），和直排那邊一致。
+    // 透明度統一使用主題的 effects spring，不在排版元件內另寫時長與曲線。
+    val motion = MaterialTheme.motionScheme
     var handleTick by remember { mutableIntStateOf(0) }
     val handleAlpha = remember { Animatable(0f) }
     LaunchedEffect(handleTick) {
@@ -203,12 +205,12 @@ fun HorizontalCellText(
         handleAlpha.snapTo(0f)
         handleAlpha.animateTo(
             targetValue = 1f,
-            animationSpec = tween(150, easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f))
+            animationSpec = motion.fastEffectsSpec()
         )
         delay(900)
         handleAlpha.animateTo(
             targetValue = 0f,
-            animationSpec = tween(260, easing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f))
+            animationSpec = motion.fastEffectsSpec()
         )
     }
 

@@ -2,14 +2,24 @@
 <resources>
 
     <!--
-      Android 12+ 的 SplashScreen 是一扇獨立的視窗，底色由
-      windowSplashScreenBackground 決定（沒設的話是 ?android:colorBackground）。
-      圖示不用指定：系統預設就拿 manifest 的 android:icon，
-      而那個圖示本身已經跟著莫奈主色同步（見 ui/theme/LauncherIcon）。
+      Android 12+ 的起始視窗是系統畫的，只能用編譯期資源：它不知道使用者在 App 裡
+      選了哪個字形，也拿不到莫奈取色派生出的色值。所以這裡只負責「底色不要刺眼、圖示
+      用啟動入口那一顆」，真正的開屏由 Compose 畫（ui/component/SplashOverlay）。
+      底色不再用 @android:color/system_neutral1_*：實測在深色模式下會解析成近白，
+      反而比靜態值更不穩；M3 的 surface 在各種取色下都是同一條中性色階，
+      靜態的 #F7F9F8 / #101413 已經夠接近。
     -->
-    <style name="Theme.MDEditor" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+    <style name="Theme.MDEditor.Base" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:colorBackground">@color/splash_background</item>
+    </style>
+
+    <!-- 不指定 windowSplashScreenAnimatedIcon：留空時系統會拿「啟動的那條 activity-alias」
+         的圖示，也就是使用者選的字形 + 那套配色，和桌面圖示完全一致。
+         指定成某一份 drawable 反而會固定在預設字形上。 -->
+    <style name="Theme.MDEditor" parent="Theme.SplashScreen.IconBackground">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.MDEditor.Base</item>
     </style>
 </resources>

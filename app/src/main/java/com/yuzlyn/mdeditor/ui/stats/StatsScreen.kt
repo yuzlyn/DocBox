@@ -3,6 +3,7 @@ package com.yuzlyn.mdeditor.ui.stats
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -121,7 +124,7 @@ fun StatsScreen(
         }
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().navigationBarsPadding(),
             contentPadding = PaddingValues(
                 start = Space.s200,
                 end = Space.s200,
@@ -241,7 +244,7 @@ fun StatsScreen(
             if (totals.isEmpty && snapshot.isEmpty) {
                 item {
                     NarrowColumn {
-                        EmptyCard(strings.statsEmpty, strings.statsEmptyHint)
+                        EmptyCard(strings.statsEmpty)
                     }
                 }
             }
@@ -429,7 +432,7 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun EmptyCard(title: String, body: String) {
+private fun EmptyCard(title: String) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -437,12 +440,6 @@ private fun EmptyCard(title: String, body: String) {
     ) {
         Column(modifier = Modifier.padding(Space.s300)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(Space.s50))
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -453,6 +450,8 @@ private fun StatsDisabled(title: String, body: String, action: String, onEnable:
         Column(
             modifier = Modifier
                 .widthIn(max = 520.dp)
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(Space.s300),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Space.s150)
@@ -624,7 +623,7 @@ private fun HeatmapCard(
                     Spacer(modifier = Modifier.height(14.dp))
                     (listOf(0, 2, 4).map { weekdays.getOrNull(it).orEmpty() } + List(4) { "" })
                         .forEach { label ->
-                        Box(modifier = Modifier.height(14.dp), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.heightIn(min = 14.dp), contentAlignment = Alignment.Center) {
                             Text(
                                 text = label,
                                 style = MaterialTheme.typography.labelSmall,
@@ -636,12 +635,30 @@ private fun HeatmapCard(
                 }
                 Column(modifier = Modifier.horizontalScroll(scroll)) {
                     MonthLabels(weeks, monthLocale)
-                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        weeks.forEach { week ->
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                week.forEach { day ->
-                                    HeatCell(day, today) { activity[day]?.score ?: 0L }
-                                }
+                    // 一年 371 格，原本是 371 個 Box：每個都有 clip、background、
+                    // 自己的佈局節點。捲動時光是讓它們重新繪製就吃掉大半預算，
+                    // 所以改成一個 Canvas 一次畫完，格子數量不再影響滑動。
+                    val palette = List(5) { levelColor(it) }
+                    val cell = 11.dp
+                    val gap = 3.dp
+                    Canvas(
+                        modifier = Modifier
+                            .width((cell + gap) * weeks.size)
+                            .height((cell + gap) * 7)
+                    ) {
+                        val side = cell.toPx()
+                        val step = (cell + gap).toPx()
+                        val radius = CornerRadius(2.dp.toPx())
+                        weeks.forEachIndexed { week, days ->
+                            days.forEachIndexed { row, day ->
+                                if (day > today) return@forEachIndexed
+                                val score = activity[day]?.score ?: 0L
+                                drawRoundRect(
+                                    color = palette[levelOf(score)],
+                                    topLeft = Offset(week * step, row * step),
+                                    size = Size(side, side),
+                                    cornerRadius = radius
+                                )
                             }
                         }
                     }
@@ -685,7 +702,7 @@ private fun MonthLabels(weeks: List<List<String>>, locale: Locale) {
     Box(
         modifier = Modifier
             .width(14.dp * weeks.size.toFloat())
-            .height(14.dp)
+            .heightIn(min = 14.dp)
     ) {
         var previous = ""
         weeks.forEachIndexed { index, week ->
@@ -717,18 +734,6 @@ private fun levelColor(level: Int): Color {
         3 -> colors.primary.copy(alpha = 0.72f)
         else -> colors.primary
     }
-}
-
-@Composable
-private fun HeatCell(day: String, today: String, score: () -> Long) {
-    // 未來的日子不畫格子：一年 53 週一定有一天會超過今天。
-    val future = day > today
-    Box(
-        modifier = Modifier
-            .size(11.dp)
-            .clip(MaterialTheme.shapes.extraSmall)
-            .background(if (future) Color.Transparent else levelColor(levelOf(score())))
-    )
 }
 
 /** 活躍度 → 五級。門檻用「分鐘＋次數」的絕對值，跨天之間才可比。 */
@@ -797,13 +802,8 @@ private fun RankingSection(
                 )
             }
 
-            if (items.isEmpty()) {
-                Text(
-                    text = strings.statsEmptyHint,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
+            // 空榜不寫提示：沒有資料時整段留白，比一句「這裡會有數字」乾淨。
+            if (items.isNotEmpty()) {
                 items.forEachIndexed { index, item ->
                     RankingRow(
                         rank = index + 1,

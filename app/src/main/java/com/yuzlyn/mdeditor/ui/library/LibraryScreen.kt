@@ -1,17 +1,27 @@
 package com.yuzlyn.mdeditor.ui.library
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +43,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -44,6 +57,7 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material3.AlertDialog
@@ -85,20 +99,32 @@ import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.book.BookFormat
 import com.yuzlyn.mdeditor.data.book.BookLibrary
 import com.yuzlyn.mdeditor.data.book.BookOpener
+import com.yuzlyn.mdeditor.data.book.BookShare
 import com.yuzlyn.mdeditor.data.book.ShelfBook
 import com.yuzlyn.mdeditor.data.book.ShelfFolder
 import com.yuzlyn.mdeditor.data.settings.CardShape
 import com.yuzlyn.mdeditor.data.settings.NoteLayout
+import com.yuzlyn.mdeditor.ui.component.APPEAR_ITEM_LIMIT
+import com.yuzlyn.mdeditor.ui.component.APPEAR_WINDOW_MS
+import com.yuzlyn.mdeditor.ui.component.Appear
+import com.yuzlyn.mdeditor.ui.component.CARD_PRESSED_SCALE
+import com.yuzlyn.mdeditor.ui.component.CARD_RIPPLE_ALPHA
+import com.yuzlyn.mdeditor.ui.component.MIN_PRESS_HOLD_MS
 import com.yuzlyn.mdeditor.ui.component.CircleIconButton
 import com.yuzlyn.mdeditor.ui.component.FabMenuEntry
 import com.yuzlyn.mdeditor.ui.component.FabMenuRow
 import com.yuzlyn.mdeditor.ui.component.RailButton
+import com.yuzlyn.mdeditor.ui.component.SelectionTopBar
+import com.yuzlyn.mdeditor.ui.component.masonryColumns
 import com.yuzlyn.mdeditor.ui.component.pressRipple
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.i18n.bookMessage
 import com.yuzlyn.mdeditor.ui.screen.Avatar
 import com.yuzlyn.mdeditor.ui.theme.Space
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /** 書庫的排序方式；只存在這一頁，不進設定（書庫不需要像筆記那樣長期記住偏好）。 */
@@ -144,8 +170,6 @@ fun LibraryScreen(
     val windowWidth = LocalConfiguration.current.screenWidthDp.dp
     // 與「全部筆記」同一道門檻：840dp 以上用左側欄，頂欄只留搜尋。
     val expanded = windowWidth >= 840.dp
-    // 與「全部筆記」同一套柵格：每列至少 200dp，寬螢幕自動加欄。
-    val gridColumns = (windowWidth / 200.dp).toInt().coerceIn(2, 6)
 
     var books by remember { mutableStateOf<List<ShelfBook>>(emptyList()) }
     var folders by remember { mutableStateOf<List<ShelfFolder>>(emptyList()) }
@@ -156,6 +180,9 @@ fun LibraryScreen(
     var fabMenuOpen by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    // 多選狀態與筆記頁同一套：長按進入、點卡片切換、返回取消。
+    // 書目本身以 id 為 key，跨排序／搜尋都認得同一本。
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     fun reload() {
@@ -164,22 +191,76 @@ fun LibraryScreen(
     }
 
     /**
-     * 進頁面（以及每次新增資料夾後）統一讀一次。
+     * 刪掉多選的書。
      *
-     * 5 秒節流：從閱讀器返回書庫不該每次都把雲端資料夾列一遍，
-     * 但使用者往資料夾丟了新書，也不該等半分鐘才看到。
+     * 檔案刪除切到 IO：一次選十本時，主執行緒逐個刪檔會讓清單在動畫開始前先卡住。
+     * 刪完才 `reload()`，`animateItem` 的淡出因此接在資料變更後，和筆記頁一致。
      */
-    suspend fun sync(force: Boolean) {
+    fun deleteSelectedBooks() {
+        val targets = books.filter { it.id in selectedIds }
+        if (targets.isEmpty()) {
+            selectedIds = emptySet()
+            return
+        }
+        scope.launch {
+            busy = true
+            withContext(Dispatchers.IO) { targets.forEach { library.remove(it) } }
+            reload()
+            selectedIds = emptySet()
+            busy = false
+        }
+    }
+
+    /**
+     * 直接把選中的書（原檔）交給系統分享面板。
+     *
+     * 走 FileProvider 授權書庫目錄裡的檔案，不轉檔、不複製：使用者要的是原本那本書，
+     * 收件人拿到的檔案也該與書庫裡的一模一樣。多選時一次送出多個 Uri。
+     */
+    fun shareSelectedBooks() {
+        val targets = books.filter { it.id in selectedIds }
+        if (targets.isEmpty()) {
+            selectedIds = emptySet()
+            return
+        }
+        // 檔案被外部清掉時 FileProvider 仍會給 Uri，但接收端一定打不開；先濾掉再送。
+        val files = targets.map { library.fileOf(it) }.filter { it.isFile }
+        if (files.isEmpty()) {
+            message = strings.msgShareFailed("missing file")
+            return
+        }
+        runCatching {
+            val intent = BookShare.intent(context, files).apply {
+                // 主旨用書名：少數只顯示標題的收件端（郵件、待辦）才看得出寄了什麼。
+                putExtra(Intent.EXTRA_SUBJECT, targets.joinToString(", ") { it.title })
+            }
+            context.startActivity(Intent.createChooser(intent, strings.share))
+        }.onFailure { error ->
+            message = if (error is ActivityNotFoundException) {
+                strings.msgNoShareTarget
+            } else {
+                strings.msgShareFailed(error.message ?: error.javaClass.simpleName)
+            }
+        }
+    }
+
+    /**
+     * 進頁面時讀一次書目。
+     *
+     * **不掃外部資料夾**：雲端硬碟列一次要幾百毫秒，每次進書庫都做一遍划不來，
+     * 而且書目本來就已經存著，結果不會變。掃描改成設定頁裡的手動動作
+     * （設定 → 書庫 → 掃描資料夾）。這裡只補本機目錄裡新丟進來的檔案——
+     * 列一次 `filesDir/books` 是毫秒級的事，不做的話「丟進去卻看不到」更難解釋。
+     */
+    suspend fun sync() {
         busy = true
-        val added = runCatching {
-            library.rescan(minIntervalMs = if (force) 0L else 5_000L)
-        }.getOrDefault(0)
+        val added = runCatching { library.refreshLocal() }.getOrDefault(0)
         reload()
         busy = false
         if (added > 0) message = strings.librarySyncAdded(added)
     }
 
-    LaunchedEffect(Unit) { sync(force = false) }
+    LaunchedEffect(Unit) { sync() }
 
     LaunchedEffect(message) {
         message?.let {
@@ -201,7 +282,7 @@ fun LibraryScreen(
                     fallbackName = strings.libraryUntitledBook
                 )
             }.getOrElse {
-                message = it.bookMessage(strings, strings.libraryEmptyHint)
+                message = it.bookMessage(strings, strings.libraryImportFailed)
                 null
             }
             reload()
@@ -221,16 +302,18 @@ fun LibraryScreen(
                     reload()
                     message = strings.libraryFolderBooks(library.booksIn(folder.id).size)
                 }
-                .onFailure { message = it.bookMessage(strings, strings.libraryEmptyHint) }
+                .onFailure { message = it.bookMessage(strings, strings.libraryImportFailed) }
             busy = false
         }
     }
 
     BackHandler(enabled = fabMenuOpen) { fabMenuOpen = false }
+    BackHandler(enabled = selectedIds.isNotEmpty()) { selectedIds = emptySet() }
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // 頂欄（statusBar + 48dp 圓鈕 + 下方留白）——內容從它下面開始排。
     val topInset = statusBarHeight + Space.s700 + Space.s100
+    val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     val fabSize = Space.s700 * 1.5f
     val fabIconRotation by animateFloatAsState(
@@ -334,6 +417,8 @@ fun LibraryScreen(
             Column(
                 modifier = Modifier
                     .navigationBarsPadding()
+                    // 資料夾可能很多；短橫屏或大字級也必須能捲到新增與移除操作。
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = Space.s300)
             ) {
                 Text(
@@ -374,7 +459,7 @@ fun LibraryScreen(
                         .fillMaxWidth()
                         .pressRipple(
                             interactionSource = interaction,
-                            shape = CircleShape
+                            shape = RoundedCornerShape(Space.s150)
                         )
                         .clickable(interactionSource = interaction, indication = null) {
                             onDismissFolderPanel()
@@ -486,14 +571,25 @@ fun LibraryScreen(
                         } else {
                             strings.libraryEmpty
                         },
-                        hint = strings.libraryEmptyHint,
                         topPadding = topInset + Space.s200,
                         startPadding = if (expanded) RAIL_WIDTH + Space.s400 else Space.s400
                     )
                 } else {
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    // 書庫的瀑布流要自己讓開左側欄，所以可用寬度是
+                    // 「整個內容區 - 側欄 - 左右邊距」，不能用整窗寬硬除。
+                    val usableWidth = maxWidth -
+                            (if (expanded) RAIL_WIDTH else Space.s0) - Space.s150 * 2
+                    val bookColumnCount = masonryColumns(usableWidth)
+                    // 進場動效只播第一屏；之後捲進來的書不再浮一次（與筆記頁同一段節奏）。
+                    var booksEntrance by remember { mutableStateOf(true) }
+                    LaunchedEffect(Unit) {
+                        delay(APPEAR_WINDOW_MS)
+                        booksEntrance = false
+                    }
                     LazyVerticalStaggeredGrid(
                         columns = if (layout == NoteLayout.MASONRY) {
-                            StaggeredGridCells.Fixed(gridColumns)
+                            StaggeredGridCells.Fixed(bookColumnCount)
                         } else {
                             StaggeredGridCells.Fixed(1)
                         },
@@ -503,34 +599,57 @@ fun LibraryScreen(
                             start = if (expanded) RAIL_WIDTH + Space.s150 else Space.s150,
                             top = topInset + Space.s200,
                             end = Space.s150,
-                            bottom = 132.dp
+                            bottom = 132.dp + navigationBarBottom
                         ),
                         horizontalArrangement = Arrangement.spacedBy(Space.s100),
                         verticalItemSpacing = Space.s100
                     ) {
-                        items(visibleBooks, key = { it.id }) { book ->
-                            BookCard(
-                                book = book,
-                                folderName = book.folderId?.let { folderNames[it] },
-                                sizeBytes = remember(book.id) {
-                                    library.fileOf(book).length()
-                                },
-                                cardShape = cardShape,
-                                compact = layout == NoteLayout.LIST,
-                                onClick = {
-                                    library.touch(book)
-                                    reload()
-                                    onOpenBook(
-                                        library.uriOf(book).toString(),
-                                        book.displayName
-                                    )
-                                },
-                                onRemove = {
-                                    library.remove(book)
-                                    reload()
-                                }
-                            )
+                        items(
+                            count = visibleBooks.size,
+                            key = { visibleBooks[it].id }
+                        ) { index ->
+                            val book = visibleBooks[index]
+                            Appear(
+                                index = index,
+                                enabled = booksEntrance && index < APPEAR_ITEM_LIMIT,
+                                // 與筆記卡同一組進出場：新增淡入、位置用 spatial 彈簧、
+                                // 刪除走 fast effects 先清掉，清單才不會瞬間塌陷。
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = motion.defaultEffectsSpec(),
+                                    placementSpec = motion.defaultSpatialSpec(),
+                                    fadeOutSpec = motion.fastEffectsSpec()
+                                )
+                            ) {
+                                BookCard(
+                                    book = book,
+                                    folderName = book.folderId?.let { folderNames[it] },
+                                    sizeBytes = remember(book.id) {
+                                        library.fileOf(book).length()
+                                    },
+                                    cardShape = cardShape,
+                                    compact = layout == NoteLayout.LIST,
+                                    selected = book.id in selectedIds,
+                                    onClick = {
+                                        if (selectedIds.isNotEmpty()) {
+                                            selectedIds = if (book.id in selectedIds) {
+                                                selectedIds - book.id
+                                            } else {
+                                                selectedIds + book.id
+                                            }
+                                        } else {
+                                            library.touch(book)
+                                            reload()
+                                            onOpenBook(
+                                                library.uriOf(book).toString(),
+                                                book.displayName
+                                            )
+                                        }
+                                    },
+                                    onLongClick = { selectedIds = selectedIds + book.id }
+                                )
+                            }
                         }
+                    }
                     }
                 }
 
@@ -544,21 +663,54 @@ fun LibraryScreen(
                     )
                 }
 
-                LibraryTopBar(
+                AnimatedContent(
+                    targetState = selectedIds.isNotEmpty(),
                     modifier = Modifier
                         .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        // 平板時讓開左側欄；多選頂欄也吃同一段內縮，才不會被側欄蓋住。
                         .padding(start = if (expanded) RAIL_WIDTH else Space.s0),
-                    query = query,
-                    onQueryChange = { query = it },
-                    avatarPath = avatarPath,
-                    layout = layout,
-                    // 平板：換版面、排序、選單、頭像都搬到左側欄，頂欄只留搜尋。
-                    railMode = expanded,
-                    onToggleLayout = onToggleLayout,
-                    onOpenSort = { showSortSheet = true },
-                    onMenu = onOpenDrawer,
-                    onOpenProfile = onOpenProfile
-                )
+                    transitionSpec = {
+                        (
+                            slideInVertically(
+                                animationSpec = motion.slowSpatialSpec(),
+                                initialOffsetY = { -it / 3 }
+                            ) + fadeIn(motion.slowEffectsSpec<Float>())
+                            ).togetherWith(
+                            slideOutVertically(
+                                animationSpec = motion.fastSpatialSpec(),
+                                targetOffsetY = { -it / 3 }
+                            ) + fadeOut(motion.fastEffectsSpec<Float>())
+                        )
+                    },
+                    label = "library-top-bar"
+                ) { selecting ->
+                    if (selecting) {
+                        SelectionTopBar(
+                            count = selectedIds.size,
+                            onClose = { selectedIds = emptySet() },
+                            onDelete = { deleteSelectedBooks() }
+                        ) {
+                            // 分享直接送原檔；放在刪除左邊，位置與筆記頁一致。
+                            IconButton(onClick = { shareSelectedBooks() }) {
+                                Icon(Icons.Default.Share, contentDescription = strings.share)
+                            }
+                        }
+                    } else {
+                        LibraryTopBar(
+                            query = query,
+                            onQueryChange = { query = it },
+                            avatarPath = avatarPath,
+                            layout = layout,
+                            // 平板：換版面、排序、選單、頭像都搬到左側欄，頂欄只留搜尋。
+                            railMode = expanded,
+                            onToggleLayout = onToggleLayout,
+                            onOpenSort = { showSortSheet = true },
+                            onMenu = onOpenDrawer,
+                            onOpenProfile = onOpenProfile
+                        )
+                    }
+                }
 
                 // 側欄最後畫，才蓋得住滑到它底下的瀑布流。
                 if (expanded) {
@@ -613,7 +765,11 @@ private fun LibrarySideRail(
     onMenu: () -> Unit
 ) {
     val strings = LocalAppStrings.current
-    Surface(modifier = modifier.fillMaxHeight(), color = MaterialTheme.colorScheme.surface) {
+    // 與筆記頁側欄同一個底色：切換主頁時這一條不能忽然變深或變淺。
+    Surface(
+        modifier = modifier.fillMaxHeight(),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+    ) {
         Row(modifier = Modifier.fillMaxHeight()) {
             Column(
                 modifier = Modifier
@@ -742,8 +898,10 @@ private fun LibraryTopBar(
                                     .align(Alignment.CenterStart)
                             )
                         }
+                        // 相鄰圓鈕至少留 16dp：32dp 的視覺 + 各 8dp 的觸控外擴，
+                        // 間距小於 16dp 時 48dp 觸控區會互相重疊，點排版可能打到排序。
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(Space.s100),
+                            horizontalArrangement = Arrangement.spacedBy(Space.s200),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (query.isNotEmpty()) {
@@ -855,22 +1013,49 @@ private fun BookCard(
     sizeBytes: Long,
     cardShape: CardShape,
     compact: Boolean,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onRemove: () -> Unit
+    onLongClick: () -> Unit
 ) {
+    // 和筆記卡片同一套：自繪、依卡片圓角裁切的波紋 + 同一個按壓比例。
+    // 原生 Surface ripple 雖然也會被圓角裁到，但兩頁的縮放比例與波紋時序會不一致。
+    val shape = RoundedCornerShape(cardShape.radiusDp.dp)
+    val interaction = remember { MutableInteractionSource() }
+    // 選中只換容器色，與 NoteCard 完全一致；走 effects spring，取消選取不會跳色。
+    val container by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "book-container"
+    )
     Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(cardShape.radiusDp.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth()
+        shape = shape,
+        color = container,
+        modifier = modifier
+            .fillMaxWidth()
+            .pressRipple(
+                interactionSource = interaction,
+                shape = shape,
+                pressedAlpha = CARD_RIPPLE_ALPHA,
+                pressedScale = CARD_PRESSED_SCALE,
+                minPressHoldMs = MIN_PRESS_HOLD_MS
+            )
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
+        // 內距四邊都是 16dp，跟 NoteCard 的 `padding(Space.s200)` 完全一致。
+        // 先前只包了 start/top/end，最後一行元資料（EPUB · 24.9 MB…）直接貼在卡片下緣，
+        // 標題一換行就更明顯——看起來像「正文和下面的資訊黏在一起」。
         Column(
-            modifier = Modifier.padding(
-                start = Space.s200,
-                top = Space.s200,
-                end = Space.s200
-            ),
+            modifier = Modifier.padding(Space.s200),
             verticalArrangement = Arrangement.spacedBy(Space.s100)
         ) {
             Icon(
@@ -886,33 +1071,26 @@ private fun BookCard(
                 maxLines = if (compact) 1 else 3,
                 overflow = TextOverflow.Ellipsis
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = buildString {
-                        if (book.extension.isNotBlank()) {
-                            append(book.extension)
-                            append(" · ")
-                        }
-                        append(formatSize(sizeBytes))
-                        if (!folderName.isNullOrBlank()) {
-                            append(" · ")
-                            append(folderName)
-                        }
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        Icons.Default.DeleteOutline,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            // 卡片上不再放單本刪除鈕：刪除一律走長按多選的頂欄。
+            // 這樣選中時卡片的內容量與高度完全不變，只換容器色——和筆記卡一致，
+            // 長按的瞬間瀑布流不會因為少了一顆 48dp 按鈕而整體重排（看起來像「變形」）。
+            Text(
+                text = buildString {
+                    if (book.extension.isNotBlank()) {
+                        append(book.extension)
+                        append(" · ")
+                    }
+                    append(formatSize(sizeBytes))
+                    if (!folderName.isNullOrBlank()) {
+                        append(" · ")
+                        append(folderName)
+                    }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -920,7 +1098,6 @@ private fun BookCard(
 @Composable
 private fun LibraryEmpty(
     title: String,
-    hint: String,
     topPadding: Dp,
     startPadding: Dp = Space.s400
 ) {
@@ -944,11 +1121,6 @@ private fun LibraryEmpty(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = hint,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

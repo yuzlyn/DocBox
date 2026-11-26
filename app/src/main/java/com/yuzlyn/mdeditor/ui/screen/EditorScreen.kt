@@ -3,6 +3,7 @@ package com.yuzlyn.mdeditor.ui.screen
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.Typeface
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,9 +18,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -47,6 +46,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -123,7 +123,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -151,6 +153,7 @@ import com.yuzlyn.mdeditor.data.NoteSaveState
 import com.yuzlyn.mdeditor.data.importer.ImportFormat
 import com.yuzlyn.mdeditor.data.export.NoteExportFormat
 import com.yuzlyn.mdeditor.data.export.NoteExportManager
+import com.yuzlyn.mdeditor.data.export.ExportTheme
 import com.yuzlyn.mdeditor.data.export.CardPosition
 import com.yuzlyn.mdeditor.data.export.ExportCard
 import com.yuzlyn.mdeditor.data.export.buildExportCard
@@ -421,7 +424,8 @@ private fun ExportCardSection(
                 )
             }
             Switch(
-                checked = enabled && hasAny,
+                // checked 只代表使用者選擇；資料是否存在由 enabled 與禁用樣式表達。
+                checked = enabled,
                 onCheckedChange = onEnabledChange,
                 enabled = hasAny
             )
@@ -553,7 +557,7 @@ private fun CardOptionRow(
                 )
             }
         }
-        Switch(checked = checked && enabled, onCheckedChange = onCheckedChange, enabled = enabled)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
 
@@ -734,6 +738,22 @@ fun EditorScreen(
     val context = LocalContext.current
     val profile by viewModel.profile.collectAsState()
     val exportManager = remember(context) { NoteExportManager(context) }
+    // 匯出用的主題：跟編輯頁同一張紙——背景（含背景圖）、字色、輔助線色與字型。
+    // 不傳的話 PDF／圖片永遠是白底黑字，使用者調的米紙或深色背景全部白做。
+    val exportTheme = remember(editorColors, appSettings.noteFont, backgroundBitmap) {
+        val fontFile = FontStore.fileOf(context, appSettings.noteFont)
+        ExportTheme(
+            background = editorColors.background.toArgb(),
+            text = editorColors.onBackground.toArgb(),
+            guide = editorColors.onBackgroundVariant.toArgb(),
+            // 系統字型留 null：PDF 用襯線體（長文好讀）、圖片用無襯線體，
+            // 與原本的行為一致；只有使用者匯入字型時才換。
+            typeface = fontFile?.let { file ->
+                runCatching { Typeface.createFromFile(file) }.getOrNull()
+            },
+            backgroundImage = backgroundBitmap?.asAndroidBitmap()
+        )
+    }
     var exportMode by remember { mutableStateOf(ExportMode.SHARE) }
     var pendingCopy by remember { mutableStateOf<PendingCopy?>(null) }
     // 名片的三個自由度（位置、頭像、各欄位）都跟著設定走：
@@ -982,7 +1002,9 @@ fun EditorScreen(
                     card = attached,
                     guide = writingGuide,
                     // 分享出去的圖／PDF 要跟螢幕上同一個方向：直排筆記就直排分享。
-                    vertical = verticalLayout
+                    vertical = verticalLayout,
+                    // 紙的顏色、字色、格線與字型也一起帶走。
+                    theme = exportTheme
                 )
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar(
@@ -1165,7 +1187,11 @@ fun EditorScreen(
         ) {
             when (activeSheet) {
                 EditorSheet.INSERT -> {
-                    Column(modifier = Modifier.navigationBarsPadding()) {
+                    Column(
+                        modifier = Modifier
+                            .navigationBarsPadding()
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         Text(
                             text = strings.insert,
                             style = MaterialTheme.typography.titleLarge,
@@ -1214,7 +1240,11 @@ fun EditorScreen(
                 EditorSheet.STYLE -> {
                     // 樣式面板原本全是寫死的中文；新加的兩組選項用字串表，四種語言都跟得上。
                     val strings = LocalAppStrings.current
-                    Column(modifier = Modifier.navigationBarsPadding()) {
+                    Column(
+                        modifier = Modifier
+                            .navigationBarsPadding()
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         Text(
                             text = strings.style,
                             style = MaterialTheme.typography.titleLarge,
@@ -1428,7 +1458,11 @@ fun EditorScreen(
                 }
 
                 EditorSheet.MORE -> {
-                    Column(modifier = Modifier.navigationBarsPadding()) {
+                    Column(
+                        modifier = Modifier
+                            .navigationBarsPadding()
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         Text(
                             text = strings.lastEdited(lastEdited),
                             style = MaterialTheme.typography.labelLarge,
@@ -1710,11 +1744,8 @@ fun EditorScreen(
                         )
                         val hintAlpha by animateFloatAsState(
                             targetValue = if (showSaveHint) 1f else 0f,
-                            animationSpec = tween(
-                                durationMillis = 200,
-                                delayMillis = 120,
-                                easing = LinearOutSlowInEasing
-                            ),
+                            // 顏色與透明度走 effects spring，不與標題各自寫不同時長。
+                            animationSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
                             label = "save-hint-alpha"
                         )
                         Box {
@@ -1955,9 +1986,15 @@ fun EditorScreen(
                             VerticalBodyEditor(
                                 value = bodyFieldValue,
                                 onValueChange = { next ->
+                                    // 只有文字真的變了才進自動保存：直排的長按選取
+                                    // 每一帧都在改 selection，照樣送下去會讓存檔管線
+                                    // 一直被叫醒，卻沒有東西要存。
+                                    val textChanged = next.text != bodyFieldValue.text
                                     bodyFieldValue = next
-                                    noteEdited(body = next.text)
-                                    recordHistory()
+                                    if (textChanged) {
+                                        noteEdited(body = next.text)
+                                        recordHistory()
+                                    }
                                 },
                                 textStyle = bodyTextStyle,
                                 focusRequester = focusRequester,
@@ -1978,13 +2015,17 @@ fun EditorScreen(
                                         start = Space.s200,
                                         end = Space.s200,
                                         top = Space.s100
-                                    )
+                                    ),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 // 作文格的橫排改由我們自己排：一格一字、自己決定換行與位置。
                                 // 交給文字引擎就永遠差一點——它按比例排，格子是等寬的，
                                 // 兩套座標系放一起，誤差必定逐字累積。
                                 val gridActive = writingGuide == WritingGuide.GRID
-                                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                BoxWithConstraints(
+                                    modifier = Modifier.widthIn(max = 840.dp).fillMaxWidth()
+                                ) {
+                                    // 版心只套在正文；背景、輔助線外框與工具列仍填滿視窗。
                                     // 三個尺寸分開：字身（1em）、列距（比字身寬）、行距（比格高）。
                                     val fontPx = with(density) { bodyTextStyle.fontSize.toPx() }
                                     val cellPx = fontPx * CELL_PITCH_EM
@@ -2193,12 +2234,12 @@ fun EditorScreen(
                                 // 右組本身貼右對齊，新按鈕只會往左長，不會推動左側工具組。
                                 AnimatedVisibility(
                                     visible = canUndo || canRedo,
-                                    enter = fadeIn(tween(120)) + expandHorizontally(
-                                        animationSpec = tween(180),
+                                    enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + expandHorizontally(
+                                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
                                         expandFrom = Alignment.End
                                     ),
-                                    exit = fadeOut(tween(120)) + shrinkHorizontally(
-                                        animationSpec = tween(180),
+                                    exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) + shrinkHorizontally(
+                                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
                                         shrinkTowards = Alignment.End
                                     )
                                 ) {

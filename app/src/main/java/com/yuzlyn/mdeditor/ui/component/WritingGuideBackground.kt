@@ -168,6 +168,9 @@ private const val BASELINE_TO_BOTTOM = 0.14f
 /**
  * 直排：每一欄自己畫自己的線，呼叫端只負責把它鋪在文字底下。
  *
+ * 線一定要跟著欄一起捲動。直排的捲動方向是水平的，若把格線畫在固定不動的
+ * 整屏圖層上，欄位一滑、線就留在原地，字會整批離開格子——這比「線沒鋪滿」更糟。
+ *
  * [cellWidthPx] 是**字身寬**（1em），不是欄距。
  * 分隔線要畫在欄的邊界上（＝兩列字正中間），不能畫在字身右緣：
  * 畫在字身右緣會變成「線貼著字的右邊、左邊空一大截」，看起來就是字沒有居中。
@@ -193,6 +196,7 @@ internal fun DrawScope.drawVerticalGuide(
     if (guide == WritingGuide.RULED) {
         // 畫在欄的右邊界：欄寬 1.72em、字身 1em，邊界正好是兩列字的中間，
         // 兩邊各留 0.36em，字才會落在行格的中央。
+        // 呼叫端把這一層鋪到整個編輯區高（見 VerticalBodyEditor），線就從頂到底。
         drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), stroke)
         return
     }

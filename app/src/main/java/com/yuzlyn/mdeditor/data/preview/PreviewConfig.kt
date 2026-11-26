@@ -10,6 +10,13 @@ data class PreviewConfig(
     val syntaxHighlight: Boolean = true,
     val headingAnchors: Boolean = false,
     val math: Boolean = true,
+    /**
+     * 中文彎引號 “” 改排直角引號「」。
+     *
+     * 與閱讀器那個開關**各自獨立**：筆記是自己寫的、書是別人的成品，
+     * 兩邊的口味不一定一樣。只改預覽的顯示，Markdown 原檔一個字都不動。
+     */
+    val cornerQuotes: Boolean = true,
     val flavor: PreviewFlavor = PreviewFlavor.GITHUB
 )
 

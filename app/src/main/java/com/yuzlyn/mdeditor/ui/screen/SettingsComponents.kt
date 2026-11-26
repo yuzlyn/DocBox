@@ -3,6 +3,7 @@ package com.yuzlyn.mdeditor.ui.screen
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,8 +17,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -36,6 +37,10 @@ internal data class SettingsRow(
     val trailing: (@Composable () -> Unit)? = null,
     /** 開關類型的最後一行不需要「前往」的箭頭。 */
     val showChevron: Boolean = true,
+    /** 禁用時不接收點擊，也不播放按壓動畫；開關本身另有原生禁用樣式。 */
+    val enabled: Boolean = true,
+    /** 單選的目前項可關閉互動但保留正常選中色；真正禁用才降透明度。 */
+    val dimWhenDisabled: Boolean = true,
     val onClick: () -> Unit
 )
 
@@ -68,14 +73,22 @@ internal fun SegmentedListItem(
     row: SettingsRow
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val contentEnabled = row.enabled || !row.dimWhenDisabled
     Surface(
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
             // 原生 ripple 不受外層 clip 影響，改用自繪且依分段圓角裁切的波紋。
-            .pressRipple(interactionSource = interactionSource, shape = shape)
+            .then(
+                if (row.enabled) {
+                    Modifier.pressRipple(interactionSource = interactionSource, shape = shape)
+                } else {
+                    Modifier
+                }
+            )
             .clickable(
+                enabled = row.enabled,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = row.onClick
@@ -94,19 +107,31 @@ internal fun SegmentedListItem(
                 row.icon,
                 contentDescription = null,
                 modifier = Modifier.size(Space.s250),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = if (contentEnabled) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                }
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = row.title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (contentEnabled) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    }
                 )
                 if (row.subtitle.isNotBlank()) {
                     Text(
                         text = row.subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (contentEnabled) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        }
                     )
                 }
             }
@@ -116,7 +141,11 @@ internal fun SegmentedListItem(
                     Icons.Default.ChevronRight,
                     contentDescription = null,
                     modifier = Modifier.size(Space.s250),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (contentEnabled) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                }
                 )
             }
         }
@@ -149,7 +178,12 @@ internal fun SegmentedListGroup(
     }
 }
 
-/** 子頁面裡的單選行：RadioButton + 文字，點擊即選。 */
+/**
+ * 子頁面的互斥選項：Switch + 可換行文字。
+ *
+ * 已選項不能再被關成「零個選項」，所以整列與 Switch 都只在未選時回應開啟。
+ * Switch 只顯示狀態，實際切換與動畫統一走整列，避免雙重反饋。
+ */
 @Composable
 internal fun SettingsRadioRow(
     selected: Boolean,
@@ -159,13 +193,17 @@ internal fun SettingsRadioRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = !selected) { onClick() }
             .padding(vertical = Space.s150),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.s200)
     ) {
-        RadioButton(selected = selected, onClick = null)
-        label()
+        Box(modifier = Modifier.weight(1f)) { label() }
+        Switch(
+            checked = selected,
+            // 已選項不接受操作，也不播放空反饋；外觀仍保持選中而不是禁用灰階。
+            onCheckedChange = if (selected) null else { _ -> onClick() }
+        )
     }
 }
 

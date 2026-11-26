@@ -23,6 +23,7 @@ private object Keys {
     val SYNTAX_HIGHLIGHT = booleanPreferencesKey("syntax_highlight")
     val HEADING_ANCHORS = booleanPreferencesKey("heading_anchors")
     val MATH = booleanPreferencesKey("math")
+    val CORNER_QUOTES = booleanPreferencesKey("corner_quotes")
     val FLAVOR = stringPreferencesKey("flavor")
 }
 
@@ -44,6 +45,8 @@ class PreviewPreferences(context: Context) {
                 syntaxHighlight = prefs[Keys.SYNTAX_HIGHLIGHT] ?: true,
                 headingAnchors = prefs[Keys.HEADING_ANCHORS] ?: false,
                 math = prefs[Keys.MATH] ?: true,
+                // 沒存過就當開：與閱讀器的預設一致，只有明確關掉的人才看原文引號。
+                cornerQuotes = prefs[Keys.CORNER_QUOTES] ?: true,
                 flavor = runCatching {
                     PreviewFlavor.valueOf(prefs[Keys.FLAVOR] ?: PreviewFlavor.GITHUB.name)
                 }.getOrDefault(PreviewFlavor.GITHUB)
@@ -59,6 +62,7 @@ class PreviewPreferences(context: Context) {
                 prefs[Keys.SYNTAX_HIGHLIGHT] = next.syntaxHighlight
                 prefs[Keys.HEADING_ANCHORS] = next.headingAnchors
                 prefs[Keys.MATH] = next.math
+                prefs[Keys.CORNER_QUOTES] = next.cornerQuotes
                 prefs[Keys.FLAVOR] = next.flavor.name
             }
         }

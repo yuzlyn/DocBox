@@ -84,6 +84,7 @@ fun BookReaderView(
     val hooks = rememberUpdatedState(
         ReaderHooks(
             book = book,
+            cornerQuotes = style.cornerQuotes,
             onOpenChapter = onOpenChapter,
             onProgress = onProgress,
             onLocation = onLocation,
@@ -132,9 +133,11 @@ fun BookReaderView(
 
     val webView = webViewRef.value
 
-    // 只在「換書／換排版方向／換翻頁方式」時才重新載入，而且只載入**一章**。
+    // 只在「換書／換排版方向／換翻頁方式／換引號排法」時才重新載入，而且只載入**一章**。
     // **章號刻意不在 key 裡**：跨章由頁內腳本就地換內容，不該重載文件。
-    LaunchedEffect(webView, style.vertical, style.mode) {
+    // 引號排法是生成 HTML 時就改掉的，改不了已成形的 DOM，所以切換時只能重載；
+    // 位置靠 `initialFraction`（呼叫端傳的是當前位置）接回去。
+    LaunchedEffect(webView, style.vertical, style.mode, style.cornerQuotes) {
         if (webView == null) return@LaunchedEffect
         val target = currentChapter.value
         val content = withContext(Dispatchers.IO) {
@@ -233,6 +236,8 @@ private fun WebView.configureForReading() {
 /** 給 WebView 執行緒回呼主執行緒用的一包資料。 */
 private class ReaderHooks(
     val book: Book,
+    /** 換章片段要用同一種引號排法，否則章界前後會不一致。 */
+    val cornerQuotes: Boolean,
     val onOpenChapter: (Int, String?) -> Unit,
     val onProgress: (Int, Int, Float) -> Unit,
     val onLocation: (Int, Float) -> Unit,
@@ -250,11 +255,14 @@ private class ReaderBridge(private val hooks: State<ReaderHooks>) {
      *
      * 換章要**同步**回傳給 JS（JS 正在等），而讀 ZIP + 改寫資源路徑是毫秒級但非零，
      * 前後各留幾章的快取就够把「來回翻」的延遲壓到 0。
+     *
+     * 鍵是「引號排法 + 章號」：切成直角引號之後，先前用彎引號生成的片段不能拿來頂，
+     * 否則換章一瞬間又會看到 “”。
      */
-    private val fragmentCache = LinkedHashMap<Int, String>()
+    private val fragmentCache = LinkedHashMap<String, String>()
 
     /** 正在背景生成的章；避免同一章被重複排隊。 */
-    private val pending = java.util.Collections.synchronizedSet(HashSet<Int>())
+    private val pending = java.util.Collections.synchronizedSet(HashSet<String>())
 
     private companion object {
         const val FRAGMENT_CACHE_SIZE = 8
@@ -302,22 +310,26 @@ private class ReaderBridge(private val hooks: State<ReaderHooks>) {
         val hooks = hooks.value
         val count = hooks.book.chapterCount
         if (chapter < 0 || chapter >= count) return ""
-        synchronized(fragmentCache) { fragmentCache[chapter]?.let { return it } }
+        val key = cacheKey(chapter, hooks.cornerQuotes)
+        synchronized(fragmentCache) { fragmentCache[key]?.let { return it } }
         val html = buildFragment(hooks, chapter)
-        if (html.isNotEmpty()) synchronized(fragmentCache) { putFragment(chapter, html) }
+        if (html.isNotEmpty()) synchronized(fragmentCache) { putFragment(key, html) }
         return html
     }
 
     private fun buildFragment(hooks: ReaderHooks, chapter: Int): String = runCatching {
         val content = runBlocking { hooks.book.readChapter(chapter) }
-        ChapterHtml.fragment(hooks.book, content, chapter)
+        ChapterHtml.fragment(hooks.book, content, chapter, hooks.cornerQuotes)
     }.getOrElse { "" }
 
-    private fun putFragment(chapter: Int, html: String) {
+    private fun cacheKey(chapter: Int, cornerQuotes: Boolean): String =
+        (if (cornerQuotes) "c" else "p") + chapter
+
+    private fun putFragment(key: String, html: String) {
         if (fragmentCache.size >= FRAGMENT_CACHE_SIZE) {
             fragmentCache.keys.firstOrNull()?.let { fragmentCache.remove(it) }
         }
-        fragmentCache[chapter] = html
+        fragmentCache[key] = html
     }
 
     /**
@@ -330,16 +342,17 @@ private class ReaderBridge(private val hooks: State<ReaderHooks>) {
     private fun prefetch(hooks: ReaderHooks, chapter: Int) {
         val count = hooks.book.chapterCount
         if (chapter < 0 || chapter >= count) return
+        val key = cacheKey(chapter, hooks.cornerQuotes)
         synchronized(fragmentCache) {
-            if (fragmentCache.containsKey(chapter)) return
+            if (fragmentCache.containsKey(key)) return
         }
-        if (!pending.add(chapter)) return
+        if (!pending.add(key)) return
         Thread({
             try {
                 val html = buildFragment(hooks, chapter)
-                if (html.isNotEmpty()) synchronized(fragmentCache) { putFragment(chapter, html) }
+                if (html.isNotEmpty()) synchronized(fragmentCache) { putFragment(key, html) }
             } finally {
-                pending.remove(chapter)
+                pending.remove(key)
             }
         }, "reader-prefetch-$chapter").start()
     }

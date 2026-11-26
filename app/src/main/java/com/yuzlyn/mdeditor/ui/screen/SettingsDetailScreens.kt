@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.settings.AppSettings
 import com.yuzlyn.mdeditor.data.settings.AppLanguage
 import com.yuzlyn.mdeditor.data.settings.CardShape
@@ -59,6 +60,7 @@ import com.yuzlyn.mdeditor.data.settings.DarkModeOption
 import com.yuzlyn.mdeditor.data.settings.LauncherGlyph
 import com.yuzlyn.mdeditor.data.settings.SeedColor
 import com.yuzlyn.mdeditor.data.settings.ThemeMode
+import com.yuzlyn.mdeditor.ui.component.ConstrainedContent
 import com.yuzlyn.mdeditor.ui.component.pressRipple
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.component.Appear
@@ -102,15 +104,19 @@ internal fun SettingsDetailScaffold(
     ) { innerPadding ->
         val counter = remember { intArrayOf(0) }
         CompositionLocalProvider(LocalDetailSectionIndex provides counter) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Space.s200, vertical = Space.s200),
-                verticalArrangement = Arrangement.spacedBy(Space.s300)
+            ConstrainedContent(
+                maxWidth = 720.dp,
+                modifier = Modifier.padding(innerPadding)
             ) {
-                content()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Space.s200, vertical = Space.s200),
+                    verticalArrangement = Arrangement.spacedBy(Space.s300)
+                ) {
+                    content()
+                }
             }
         }
     }
@@ -238,7 +244,9 @@ fun ThemeSettingsScreen(
                 val selected = settings.themeMode == mode
                 SettingsRadioRow(
                     selected = selected,
-                    onClick = { onChange(settings.copy(themeMode = mode)) }
+                    onClick = {
+                        if (!selected) onChange(settings.copy(themeMode = mode))
+                    }
                 ) {
                     RadioLabel(label, selected)
                 }

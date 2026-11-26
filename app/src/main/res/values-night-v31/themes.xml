@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MDEditor" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+    <style name="Theme.MDEditor.Base" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:colorBackground">@color/splash_background</item>
+    </style>
+
+    <!-- 不指定 windowSplashScreenAnimatedIcon：留空時系統會拿「啟動的那條 activity-alias」
+         的圖示，也就是使用者選的字形 + 那套配色，和桌面圖示完全一致。
+         指定成某一份 drawable 反而會固定在預設字形上。 -->
+    <style name="Theme.MDEditor" parent="Theme.SplashScreen.IconBackground">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.MDEditor.Base</item>
     </style>
 </resources>

@@ -12,7 +12,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,22 +24,27 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TextFields
@@ -48,12 +56,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ripple
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -72,15 +82,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.book.Book
 import com.yuzlyn.mdeditor.data.book.BookOpener
@@ -99,6 +115,7 @@ import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.i18n.bookMessage
 import com.yuzlyn.mdeditor.ui.i18n.label
 import com.yuzlyn.mdeditor.data.fonts.FontStore
+import com.yuzlyn.mdeditor.ui.component.pressRipple
 import com.yuzlyn.mdeditor.ui.theme.Space
 import com.yuzlyn.mdeditor.ui.theme.noteFontFamily
 import kotlinx.coroutines.Dispatchers
@@ -190,6 +207,7 @@ fun ReaderScreen(
         settings.readerTextScale,
         settings.readerMargin,
         settings.readerLineHeightTenths,
+        settings.readerCornerQuotes,
         mode,
         fontCss
     ) {
@@ -200,6 +218,7 @@ fun ReaderScreen(
             margin = settings.readerMargin,
             lineHeight = settings.readingLineHeight,
             mode = mode,
+            cornerQuotes = settings.readerCornerQuotes,
             fontFamilyCss = fontCss
         )
     }
@@ -325,7 +344,10 @@ fun ReaderScreen(
                 },
                 // 只讓書頁避開狀態列／導覽列，左右留白交給書自己的版面——
                 // 一旦在外層加水平內縮，翻頁看起來就會像「書在框裡滑」而不是整頁翻。
+                // 寬螢幕把 WebView 置中並限寬，背景仍鋪滿；JS 分頁會依實際 clientWidth 重排。
                 modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .widthIn(max = 840.dp)
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.statusBars)
                     .windowInsetsPadding(WindowInsets.navigationBars)
@@ -471,7 +493,8 @@ fun ReaderScreen(
                 onLineHeight = { tenths ->
                     onChange(settings.copy(readerLineHeightTenths = tenths))
                 },
-                onMargin = { dp -> onChange(settings.copy(readerMargin = dp)) }
+                onMargin = { dp -> onChange(settings.copy(readerMargin = dp)) },
+                onCornerQuotes = { on -> onChange(settings.copy(readerCornerQuotes = on)) }
             )
         }
     }
@@ -493,7 +516,8 @@ private fun ReaderTopBar(title: String, subtitle: String?, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .height(56.dp)
+                // 只保留下限，讓較大的系統字級能撐高頂欄，避免標題與副標題被裁切。
+                .heightIn(min = 56.dp)
                 .padding(horizontal = Space.s50),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -522,6 +546,92 @@ private fun ReaderTopBar(title: String, subtitle: String?, onBack: () -> Unit) {
     }
 }
 
+/**
+ * 底欄的一個動作。
+ *
+ * 底欄項目數是固定的，但**標籤長度隨語言變**：法文「Mise en page」是中文「排版」的三倍寬，
+ * 英文「Layout」也不一樣。等分排法只要遇到最長的那種語言就會把最後一格擠出螢幕，
+ * 所以這裡先能量到寬度，再決定誰留在底欄、誰收進「更多」。
+ */
+private sealed interface ReaderBarSlot {
+    val label: String
+
+    data class Action(
+        val icon: ImageVector,
+        override val label: String,
+        val onClick: () -> Unit
+    ) : ReaderBarSlot
+
+    /** 字號是 A−／A+ 兩枚按鈕並排，寬度是兩枚各取較寬者再加起來。 */
+    data class TextScale(override val label: String) : ReaderBarSlot
+}
+
+/** 底欄一格的最小可點寬度：M3 的觸控目標是 48dp，比圖示本身寬。 */
+private val BAR_SLOT_MIN_WIDTH = 48.dp
+
+private fun measureLabelPx(
+    measurer: TextMeasurer,
+    text: String,
+    style: TextStyle
+): Float = measurer.measure(
+    text = AnnotatedString(text),
+    style = style,
+    softWrap = false,
+    maxLines = 1
+).size.width.toFloat()
+
+/**
+ * 一個動作實際佔多寬。
+ *
+ * 算法要和 [ReaderAction]／[ReaderTextAction] 的內距一致（`defaultMinSize(48dp)` ＋
+ * 左右各 `Space.s50`）：改一邊就要改另一邊，不然量到的和畫出來的會差一截，
+ * 「明明算得下卻被擠出去」就是這樣來的。
+ */
+private fun ReaderBarSlot.widthPx(
+    measurer: TextMeasurer,
+    labelStyle: TextStyle,
+    valueStyle: TextStyle,
+    density: Density
+): Float = with(density) {
+    val pad = (Space.s50 * 2).toPx()
+    fun cell(label: String, style: TextStyle) =
+        maxOf(BAR_SLOT_MIN_WIDTH.toPx(), measureLabelPx(measurer, label, style) + pad)
+    when (this@widthPx) {
+        is ReaderBarSlot.Action -> cell(label, labelStyle)
+        is ReaderBarSlot.TextScale -> {
+            // 兩枚按鈕之間還有 s50 的間距；label 比 A− 寬時以 label 為準。
+            val minus = maxOf(cell("A−", valueStyle), cell(label, labelStyle))
+            val plus = maxOf(cell("A+", valueStyle), cell(label, labelStyle))
+            minus + plus + Space.s50.toPx()
+        }
+    }
+}
+
+/**
+ * 決定底欄留哪些、收哪些。
+ *
+ * 從**後面**開始收：字號在最右、也最寬，收掉它通常就夠了；目錄／主題／排版是用得最多的，
+ * 留到最後。至少留一格，否則底欄會只剩一個「更多」，反而更難用。
+ */
+private fun fitBarSlots(
+    slots: List<ReaderBarSlot>,
+    availablePx: Float,
+    moreWidthPx: Float,
+    widthOf: (ReaderBarSlot) -> Float
+): Pair<List<ReaderBarSlot>, List<ReaderBarSlot>> {
+    val widths = slots.map(widthOf)
+    val total = widths.sum()
+    if (total <= availablePx) return slots to emptyList()
+    var keep = slots.size
+    var used = total
+    while (keep > 1 && used + moreWidthPx > availablePx) {
+        keep--
+        used -= widths[keep]
+    }
+    return slots.take(keep) to slots.drop(keep)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReaderBottomBar(
     strings: AppStrings,
@@ -542,6 +652,9 @@ private fun ReaderBottomBar(
     // 整本書的進度：第幾章加上章內比例，比只看單章更有意義。
     val total = chapterCount.coerceAtLeast(1)
     val overall = ((chapter + fraction.coerceIn(0f, 1f)) / total).coerceIn(0f, 1f)
+    // 底欄放不下的動作；null 表示沒開「更多」。存的是當下那一組動作，
+    // 這樣面板開著時切換語言或轉向也不會拿到另一組。
+    var moreSheet by remember { mutableStateOf<List<ReaderBarSlot>?>(null) }
 
     Surface(
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
@@ -577,54 +690,102 @@ private fun ReaderBottomBar(
                     .fillMaxWidth()
                     .height(3.dp)
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ReaderAction(
-                    icon = Icons.AutoMirrored.Filled.List,
-                    label = strings.readerContents,
-                    onClick = onOpenToc
-                )
-                ReaderAction(
-                    icon = Icons.Default.Palette,
-                    label = strings.theme,
-                    onClick = onOpenThemes
-                )
-                ReaderAction(
-                    icon = Icons.Default.Tune,
-                    label = strings.readerLayout,
-                    onClick = onOpenLayout
-                )
-                ReaderAction(
-                    icon = Icons.Default.TextFields,
-                    label = strings.font,
-                    onClick = onOpenFonts
-                )
-                ReaderAction(
-                    icon = Icons.Default.SwapHoriz,
-                    label = if (settings.readerVertical) strings.horizontalLayout else strings.verticalLayoutLabel,
-                    onClick = onToggleVertical
+            // 先量再排：把六個動作需要的寬度加起來跟可用寬度比，放不下就把最後幾格
+            // 收進右邊的「更多」。這樣任何一種語言都不會有一格被切在螢幕外。
+            val measurer = rememberTextMeasurer()
+            val labelStyle = MaterialTheme.typography.labelSmall
+            val valueStyle = MaterialTheme.typography.titleMedium
+            val density = LocalDensity.current
+            val slots = listOf(
+                ReaderBarSlot.Action(
+                    Icons.AutoMirrored.Filled.List,
+                    strings.readerContents,
+                    onOpenToc
+                ),
+                ReaderBarSlot.Action(Icons.Default.Palette, strings.theme, onOpenThemes),
+                ReaderBarSlot.Action(Icons.Default.Tune, strings.readerLayout, onOpenLayout),
+                ReaderBarSlot.Action(Icons.Default.TextFields, strings.font, onOpenFonts),
+                ReaderBarSlot.Action(
+                    Icons.Default.SwapHoriz,
+                    if (settings.readerVertical) strings.horizontalLayout
+                    else strings.verticalLayoutLabel,
+                    onToggleVertical
+                ),
+                ReaderBarSlot.TextScale(strings.readerFontSize)
+            )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val widthOf: (ReaderBarSlot) -> Float = {
+                    it.widthPx(measurer, labelStyle, valueStyle, density)
+                }
+                val moreWidth = ReaderBarSlot.Action(Icons.Default.MoreVert, strings.more) {}
+                    .widthPx(measurer, labelStyle, valueStyle, density)
+                val (visible, overflow) = fitBarSlots(
+                    slots = slots,
+                    availablePx = constraints.maxWidth.toFloat(),
+                    moreWidthPx = moreWidth,
+                    widthOf = widthOf
                 )
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Space.s50)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ReaderTextAction(
-                        text = "A−",
-                        label = strings.readerFontSize,
-                        enabled = settings.readerTextScale > AppSettingsPreferences.MIN_TEXT_SCALE,
-                        onClick = { onTextScale(-AppSettingsPreferences.TEXT_SCALE_STEP) }
-                    )
-                    ReaderTextAction(
-                        text = "A+",
-                        label = "${settings.readerTextScale}%",
-                        enabled = settings.readerTextScale < AppSettingsPreferences.MAX_TEXT_SCALE,
-                        onClick = { onTextScale(AppSettingsPreferences.TEXT_SCALE_STEP) }
-                    )
+                    visible.forEach { slot ->
+                        when (slot) {
+                            is ReaderBarSlot.Action -> ReaderAction(
+                                icon = slot.icon,
+                                label = slot.label,
+                                onClick = slot.onClick
+                            )
+                            is ReaderBarSlot.TextScale -> Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Space.s50)
+                            ) {
+                                ReaderTextAction(
+                                    text = "A−",
+                                    label = strings.readerFontSize,
+                                    enabled = settings.readerTextScale >
+                                        AppSettingsPreferences.MIN_TEXT_SCALE,
+                                    onClick = {
+                                        onTextScale(-AppSettingsPreferences.TEXT_SCALE_STEP)
+                                    }
+                                )
+                                ReaderTextAction(
+                                    text = "A+",
+                                    label = "${settings.readerTextScale}%",
+                                    enabled = settings.readerTextScale <
+                                        AppSettingsPreferences.MAX_TEXT_SCALE,
+                                    onClick = {
+                                        onTextScale(AppSettingsPreferences.TEXT_SCALE_STEP)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    if (overflow.isNotEmpty()) {
+                        ReaderAction(
+                            icon = Icons.Default.MoreVert,
+                            label = strings.more,
+                            onClick = { moreSheet = overflow }
+                        )
+                    }
                 }
             }
+        }
+    }
+
+    if (moreSheet != null) {
+        ModalBottomSheet(
+            onDismissRequest = { moreSheet = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            ReaderMoreSheet(
+                strings = strings,
+                slots = moreSheet.orEmpty(),
+                textScale = settings.readerTextScale,
+                onDismiss = { moreSheet = null },
+                onTextScale = onTextScale
+            )
         }
     }
 }
@@ -645,7 +806,12 @@ private fun ReaderFontSheet(
     val context = LocalContext.current
     val strings = LocalAppStrings.current
     val fonts = remember { FontStore.list(context) }
-    Column(modifier = Modifier.navigationBarsPadding()) {
+    // 字型較多或可用高度較小時，讓整份清單都能捲到。
+    Column(
+        modifier = Modifier
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+    ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
@@ -766,6 +932,90 @@ private fun ReaderTextAction(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
         )
+    }
+}
+
+/**
+ * 「更多」面板：底欄放不下的動作收到這裡。
+ *
+ * 用 sheet 而不是下拉選單——這裡是設定性質的內容（字號還要連續點幾下），
+ * M3 把 sheet 定位給次要任務與設定，下拉選單則留給短清單的一次性選擇。
+ * 每一列沿用底欄那一格的名字，不另外造詞，換語言時也不會多一份要翻譯的字串。
+ */
+@Composable
+private fun ReaderMoreSheet(
+    strings: AppStrings,
+    slots: List<ReaderBarSlot>,
+    textScale: Int,
+    onDismiss: () -> Unit,
+    onTextScale: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(bottom = Space.s200)
+    ) {
+        Text(
+            text = strings.more,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = Space.s200, vertical = Space.s100)
+        )
+        slots.forEach { slot ->
+            when (slot) {
+                is ReaderBarSlot.Action -> ListItem(
+                    // 一定要给透明底色：M3 的 ListItem 默认自己涂一层 `surface`，
+                    // 而弹层容器是 `surfaceContainerLow`——深色主题下这两个角色差一级，
+                    // 不覆盖就会在弹层底部留下一条颜色不一样的横条。
+                    colors = ListItemDefaults.colors(containerColor = ComposeColor.Transparent),
+                    headlineContent = { Text(slot.label) },
+                    leadingContent = {
+                        Icon(
+                            slot.icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Space.s150))
+                        .clickable {
+                            // 先關面板再開下一個：兩個 sheet 疊在一起會互相搶返回鍵。
+                            onDismiss()
+                            slot.onClick()
+                        }
+                )
+
+                is ReaderBarSlot.TextScale -> ListItem(
+                    colors = ListItemDefaults.colors(containerColor = ComposeColor.Transparent),
+                    headlineContent = { Text(slot.label) },
+                    supportingContent = { Text("$textScale%") },
+                    leadingContent = {
+                        Icon(
+                            Icons.Default.TextFields,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ReaderTextAction(
+                                text = "A−",
+                                label = strings.readerFontSize,
+                                enabled = textScale > AppSettingsPreferences.MIN_TEXT_SCALE,
+                                onClick = { onTextScale(-AppSettingsPreferences.TEXT_SCALE_STEP) }
+                            )
+                            ReaderTextAction(
+                                text = "A+",
+                                label = "$textScale%",
+                                enabled = textScale < AppSettingsPreferences.MAX_TEXT_SCALE,
+                                onClick = { onTextScale(AppSettingsPreferences.TEXT_SCALE_STEP) }
+                            )
+                        }
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -893,17 +1143,20 @@ private fun ThemeSwatch(
     } else {
         MaterialTheme.colorScheme.outlineVariant
     }
+    val rowInteraction = remember { MutableInteractionSource() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            // 整列都是熱區（點名字也選得到），但遮罩不畫在這一層：
-            // 水波紋的邊界就是節點邊界，放在這裡會變成一個整列寬、
-            // 比圓點高兩倍的方框。這裡只當熱區，遮罩交給圓點自己畫。
-            // 用 selectable 而不是 clickable：這是單選，TalkBack 要能
-            // 唸出「已選中」。
+            // 圓點與文字共用一個 selectable 和一組回縮／圓角波紋，
+            // 點文字也有反饋，且不會在圓點內再疊第二套動畫。
+            .pressRipple(
+                interactionSource = rowInteraction,
+                shape = RoundedCornerShape(Space.s150)
+            )
+            // 用 selectable 而不是 clickable：這是單選，TalkBack 要能唸出「已選中」。
             .selectable(
                 selected = selected,
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = rowInteraction,
                 indication = null,
                 role = Role.RadioButton
             ) { onPick(theme) }
@@ -912,25 +1165,15 @@ private fun ThemeSwatch(
         Box(
             modifier = Modifier
                 .size(52.dp)
-                // clip 在 clickable 之前：水波紋因此被裁成圓形，
-                // 跟這個按鈕實際的形狀一致（Material 的圓形選項按鈕就是這樣）。
                 .clip(CircleShape)
-                // 語意交給外面那一列：一列只有一個可點節點，
-                // 不然 TalkBack 會把同一個主題唸兩次。
+                // 語意與點擊都交給外面那一列，TalkBack 只唸一次。
                 .clearAndSetSemantics { }
                 .background(paper, CircleShape)
                 .border(
                     width = if (selected) 2.dp else 1.dp,
                     color = ring,
                     shape = CircleShape
-                )
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    // 波紋顏色跟著正文走：淺底是深波紋、墨黑底是淺波紋，
-                    // 用主題色會在墨黑上完全看不見。
-                    indication = ripple(color = ink.copy(alpha = 0.28f)),
-                    role = Role.RadioButton
-                ) { onPick(theme) },
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -951,22 +1194,26 @@ private fun ThemeSwatch(
 }
 
 /**
- * 排版面板：翻頁方式、行距、頁邊留白。
+ * 排版面板：翻頁方式、行距、頁邊留白、直角引號。
  *
- * 這三項是「同一本書、同一個字級下，看起來還是差很多」的主因，
+ * 這幾項是「同一本書、同一個字級下，看起來還是差很多」的主因，
  * 所以跟主題分開——主題是配色，這裡是版面本身。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReaderLayoutSheet(
     strings: AppStrings,
     settings: AppSettings,
     onMode: (ReaderMode) -> Unit,
     onLineHeight: (Int) -> Unit,
-    onMargin: (Int) -> Unit
+    onMargin: (Int) -> Unit,
+    onCornerQuotes: (Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // 橫向或大字級下高度不足時，所有排版選項仍可捲動取得。
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = Space.s200)
             .padding(bottom = Space.s400),
         verticalArrangement = Arrangement.spacedBy(Space.s200)
@@ -975,7 +1222,12 @@ private fun ReaderLayoutSheet(
             text = strings.readerLayout,
             style = MaterialTheme.typography.titleMedium
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.s100)) {
+        // 模式名稱會隨語言與字級變長，放不下時換行，避免選項被裁掉。
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Space.s100),
+            verticalArrangement = Arrangement.spacedBy(Space.s100)
+        ) {
             FilterChip(
                 selected = settings.readingMode == ReaderMode.PAGED,
                 onClick = { onMode(ReaderMode.PAGED) },
@@ -1031,6 +1283,31 @@ private fun ReaderLayoutSheet(
                 )
             }
         )
+        // 引號排法：開關而不是選項——只有「直角引號」和「書的原樣」兩種，
+        // 而且預設就是前者，需要的人是把它關回去。
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = Space.s100),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = strings.readerCornerQuotes,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = strings.readerCornerQuotesHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.width(Space.s100))
+            Switch(
+                checked = settings.readerCornerQuotes,
+                onCheckedChange = onCornerQuotes
+            )
+        }
     }
 }
 

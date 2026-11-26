@@ -17,4 +17,5 @@
       色調跟預設的莫奈紙色（LOTUS）取同一個調子，不是純白也不是純黑。
     -->
     <color name="splash_background">#F7F9F8</color>
+    <color name="splash_icon_background">#396471</color>
 </resources>

@@ -27,7 +27,9 @@ class NoteExportManager(private val context: Context) {
         /** 書寫輔助線；只有 PDF／圖片這種視覺格式吃得到，純文字格式沒有對應概念。 */
         guide: WritingGuide = WritingGuide.NONE,
         /** 直排：跟著筆記自己的排版走（見 AppSettings.verticalLayout）。 */
-        vertical: Boolean = false
+        vertical: Boolean = false,
+        /** 背景／文字／輔助線／字型；只有 PDF 與圖片吃得到。 */
+        theme: ExportTheme = ExportTheme.DEFAULT
     ): ExportResult = withContext(Dispatchers.IO) {
         when (format) {
             NoteExportFormat.MARKDOWN ->
@@ -40,12 +42,14 @@ class NoteExportManager(private val context: Context) {
                 ExportResult(DocxWriter.build(buildBlocks(title, body, card)))
 
             // PDF 沒有「圖」這個概念，名片只以文字附上（頭像開關對它無效）。
+            // 底色與字色仍然照筆記走：白底黑字的 PDF 貼給別人，和他在 App 裡看到的不一樣。
             NoteExportFormat.PDF ->
                 ExportResult(
                     NoteDocumentRenderer.renderPdf(
                         text = buildPlainText(title, body, card),
                         guide = guide,
-                        vertical = vertical
+                        vertical = vertical,
+                        theme = theme
                     )
                 )
 
@@ -55,7 +59,8 @@ class NoteExportManager(private val context: Context) {
                     text = buildPlainText(title, body),
                     guide = guide,
                     vertical = vertical,
-                    card = card
+                    card = card,
+                    theme = theme
                 )
                 ExportResult(png.bytes, png.truncated)
             }

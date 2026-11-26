@@ -8,11 +8,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,14 +20,12 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,6 +39,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -52,8 +49,12 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -135,20 +136,32 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzlyn.mdeditor.data.NoteModel
 import com.yuzlyn.mdeditor.data.importer.ImportFormat
 import com.yuzlyn.mdeditor.data.settings.AppSettings
 import com.yuzlyn.mdeditor.data.settings.CardShape
 import com.yuzlyn.mdeditor.data.settings.NoteLayout
 import com.yuzlyn.mdeditor.data.settings.NoteSort
+import com.yuzlyn.mdeditor.ui.component.APPEAR_ITEM_LIMIT
+import com.yuzlyn.mdeditor.ui.component.APPEAR_WINDOW_MS
+import com.yuzlyn.mdeditor.ui.component.Appear
+import com.yuzlyn.mdeditor.ui.component.CARD_PRESSED_SCALE
+import com.yuzlyn.mdeditor.ui.component.CARD_RIPPLE_ALPHA
+import com.yuzlyn.mdeditor.ui.component.MIN_PRESS_HOLD_MS
 import com.yuzlyn.mdeditor.ui.component.CircleIconButton
 import com.yuzlyn.mdeditor.ui.component.FabMenuEntry
 import com.yuzlyn.mdeditor.ui.component.FabMenuRow
 import com.yuzlyn.mdeditor.ui.component.RailButton
+import com.yuzlyn.mdeditor.ui.component.SelectionTopBar
+import com.yuzlyn.mdeditor.ui.component.masonryColumns
 import com.yuzlyn.mdeditor.ui.component.pressRipple
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.theme.Space
@@ -184,7 +197,14 @@ fun MainScreen(
     hasFolderSelected: Boolean,
     isImporting: Boolean,
     settings: AppSettings,
-    onSettingsChange: (AppSettings) -> Unit,
+    /**
+     * 用 transform 寫入，而不是傳一份組合時算好的完整設定。
+     *
+     * `updateAppSettings` 會在 DataStore 的鎖內讀「最新」值再套用；若這裡傳
+     * `settings.copy(...)`，連點兩下時第二下仍拿著重組前的舊值，會把第一下的結果
+     * 原封不動寫回去——看起來就是「切換有時沒反應，反而書庫的排版變了」。
+     */
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     avatarPath: String,
     section: HomeSection,
     onSectionChange: (HomeSection) -> Unit,
@@ -233,6 +253,8 @@ fun MainScreen(
     // 頂欄：內容 56dp + 下方 8dp 留白；捲動時整塊（含背景）上移並淡出，內容從下方頂上來。
     val density = LocalDensity.current
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // 浮層 Scaffold 刻意不消費 innerPadding，所以內容底部要自己避開三鍵導航與 FAB。
+    val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val topBarContentHeight = Space.s700
     val topBarBottomSpace = Space.s100
     val topBarInset = statusBarHeight + topBarContentHeight + topBarBottomSpace
@@ -375,7 +397,7 @@ fun MainScreen(
                                 interactionSource = rowInteraction,
                                 indication = null
                             ) {
-                                onSettingsChange(settings.copy(noteSort = option))
+                                onSettingsChange { current -> current.copy(noteSort = option) }
                                 showSortSheet = false
                             }
                             .padding(vertical = Space.s100),
@@ -409,8 +431,6 @@ fun MainScreen(
             // 側欄就變成「每次進首頁都從 0 寬展開」——既露縫，又讓整頁重新測量（卡頓）。
             val windowWidth = LocalConfiguration.current.screenWidthDp.dp
             val expanded = windowWidth >= 840.dp
-            // 瀑布流欄數按「每列至少 200dp」算：手機 2 欄、平板豎屏 3 欄、橫屏 5 欄。
-            val gridColumns = (windowWidth / 200.dp).toInt().coerceIn(2, 6)
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
@@ -503,15 +523,15 @@ fun MainScreen(
                         avatarPath = avatarPath,
                         noteLayout = settings.noteLayout,
                         onToggleLayout = {
-                            onSettingsChange(
-                                settings.copy(
-                                    noteLayout = if (settings.noteLayout == NoteLayout.MASONRY) {
+                            onSettingsChange { current ->
+                                current.copy(
+                                    noteLayout = if (current.noteLayout == NoteLayout.MASONRY) {
                                         NoteLayout.LIST
                                     } else {
                                         NoteLayout.MASONRY
                                     }
                                 )
-                            )
+                            }
                         },
                         onOpenSort = { showSortSheet = true },
                         onOpenSearch = onOpenSearch,
@@ -532,49 +552,83 @@ fun MainScreen(
 
                     HomeContent.WELCOME -> {
                         WelcomeState(
-                            innerPadding = PaddingValues(top = contentTopInset),
+                            innerPadding = PaddingValues(top = contentTopInset, bottom = navigationBarBottom),
                             onChooseFolder = { folderLauncher.launch(null) }
                         )
                     }
 
                     HomeContent.NOTEBOOKS -> {
-                        LazyVerticalStaggeredGrid(
-                            columns = StaggeredGridCells.Fixed(gridColumns),
+                        // 單列時網格限寬 840dp，要跟「全部筆記」一樣置中，否則平板上會貼左。
+                        BoxWithConstraints(
                             modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                        val notebookColumnCount = masonryColumns(maxWidth - Space.s150 * 2)
+                        // 進場動效只覆蓋第一屏：延遲列表是懶載入的，之後捲進來的項目
+                        // 若也重播，每滑一段就浮一次，比沒有動效更糟。
+                        var notebookEntrance by remember { mutableStateOf(true) }
+                        LaunchedEffect(Unit) {
+                            delay(APPEAR_WINDOW_MS)
+                            notebookEntrance = false
+                        }
+                        LazyVerticalStaggeredGrid(
+                            // 和「全部筆記」讀同一份排版設定：這裡原本把列數寫死成瀑布流，
+                            // 按頂欄的切換鈕只改了設定、畫面不動，看起來就是「按鈕失效」。
+                            columns = if (settings.noteLayout == NoteLayout.LIST) {
+                                StaggeredGridCells.Fixed(1)
+                            } else {
+                                StaggeredGridCells.Fixed(notebookColumnCount)
+                            },
+                            modifier = if (settings.noteLayout == NoteLayout.LIST) {
+                                // 單列時保留閱讀版心，和平板上的筆記列表一致。
+                                Modifier.widthIn(max = 840.dp).fillMaxSize()
+                            } else {
+                                Modifier.fillMaxSize()
+                            },
                             contentPadding = PaddingValues(
                                 start = Space.s150,
                                 top = contentTopInset + Space.s200,
                                 end = Space.s150,
-                                bottom = Space.s200
+                                bottom = navigationBarBottom + Space.s200
                             ),
                             horizontalArrangement = Arrangement.spacedBy(Space.s100),
                             verticalItemSpacing = Space.s100
                         ) {
-                            items(filteredTags, key = { it }) { tag ->
-                                NotebookCard(
+                            items(
+                                count = filteredTags.size,
+                                key = { filteredTags[it] }
+                            ) { index ->
+                                val tag = filteredTags[index]
+                                Appear(
+                                    index = index,
+                                    enabled = notebookEntrance && index < APPEAR_ITEM_LIMIT,
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = motion.defaultEffectsSpec(),
                                         placementSpec = motion.defaultSpatialSpec(),
                                         fadeOutSpec = motion.fastEffectsSpec()
-                                    ),
-                                    name = tag,
-                                    count = notes.count { it.notebookTag == tag },
-                                    cardShape = settings.cardShape,
-                                    lastModified = notes.asSequence()
-                                        .filter { it.notebookTag == tag }
-                                        .maxOfOrNull { it.lastModified } ?: 0L,
-                                    onClick = {
-                                        onSectionChange(HomeSection.NOTES)
-                                        onSelectTag(tag)
-                                    }
-                                )
+                                    )
+                                ) {
+                                    NotebookCard(
+                                        name = tag,
+                                        count = notes.count { it.notebookTag == tag },
+                                        cardShape = settings.cardShape,
+                                        lastModified = notes.asSequence()
+                                            .filter { it.notebookTag == tag }
+                                            .maxOfOrNull { it.lastModified } ?: 0L,
+                                        onClick = {
+                                            onSectionChange(HomeSection.NOTES)
+                                            onSelectTag(tag)
+                                        }
+                                    )
+                                }
                             }
+                        }
                         }
                     }
 
                     HomeContent.EMPTY_NOTEBOOKS -> {
                         EmptyState(
-                            innerPadding = PaddingValues(top = contentTopInset),
+                            innerPadding = PaddingValues(top = contentTopInset, bottom = navigationBarBottom),
                             title = strings.noNotebooks,
                             hint = strings.notebookHint
                         )
@@ -582,54 +636,82 @@ fun MainScreen(
 
                     HomeContent.EMPTY_NOTES -> {
                         EmptyState(
-                            innerPadding = PaddingValues(top = contentTopInset),
+                            innerPadding = PaddingValues(top = contentTopInset, bottom = navigationBarBottom),
                             title = strings.noNotes,
                             hint = strings.createFirstNote
                         )
                     }
 
                     HomeContent.NOTES -> {
+                        BoxWithConstraints(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                        // 用這個內容區實際量到的寬度算欄數（平板有側欄時已扣除），
+                        // 不用整窗寬，也不用 Adaptive(180dp)——那會在 360dp 手機只剩一欄。
+                        val masonryColumnCount = masonryColumns(maxWidth - Space.s150 * 2)
+                        // 與筆記本頁同一段節奏：只播第一屏，項目多的時候不會一路等下去。
+                        var notesEntrance by remember { mutableStateOf(true) }
+                        LaunchedEffect(Unit) {
+                            delay(APPEAR_WINDOW_MS)
+                            notesEntrance = false
+                        }
                         LazyVerticalStaggeredGrid(
                             columns = if (settings.noteLayout == NoteLayout.MASONRY) {
-                                StaggeredGridCells.Fixed(gridColumns)
+                                StaggeredGridCells.Fixed(masonryColumnCount)
                             } else {
                                 StaggeredGridCells.Fixed(1)
                             },
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = if (settings.noteLayout == NoteLayout.LIST) {
+                                // 單列表在平板上保留閱讀版心；瀑布流仍善用全部剩餘寬度。
+                                Modifier.widthIn(max = 840.dp).fillMaxSize()
+                            } else {
+                                Modifier.fillMaxSize()
+                            },
                             contentPadding = PaddingValues(
                                 start = Space.s150,
                                 top = contentTopInset + Space.s200,
                                 end = Space.s150,
-                                bottom = Space.s200
+                                bottom = navigationBarBottom + 132.dp
                             ),
                             horizontalArrangement = Arrangement.spacedBy(Space.s100),
                             verticalItemSpacing = Space.s100
                         ) {
-                            items(sortedNotes, key = { it.id }) { note ->
-                                NoteCard(
+                            items(
+                                count = sortedNotes.size,
+                                key = { sortedNotes[it].id }
+                            ) { index ->
+                                val note = sortedNotes[index]
+                                Appear(
+                                    index = index,
+                                    enabled = notesEntrance && index < APPEAR_ITEM_LIMIT,
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = motion.defaultEffectsSpec(),
                                         placementSpec = motion.defaultSpatialSpec(),
                                         fadeOutSpec = motion.fastEffectsSpec()
-                                    ),
-                                    note = note,
-                                    selected = note.id in selectedIds,
-                                    cardShape = settings.cardShape,
-                                    showDetails = settings.noteLayout == NoteLayout.MASONRY,
-                                    onClick = {
-                                        if (selectedIds.isNotEmpty()) {
-                                            selectedIds = if (note.id in selectedIds) {
-                                                selectedIds - note.id
+                                    )
+                                ) {
+                                    NoteCard(
+                                        note = note,
+                                        selected = note.id in selectedIds,
+                                        cardShape = settings.cardShape,
+                                        showDetails = settings.noteLayout == NoteLayout.MASONRY,
+                                        onClick = {
+                                            if (selectedIds.isNotEmpty()) {
+                                                selectedIds = if (note.id in selectedIds) {
+                                                    selectedIds - note.id
+                                                } else {
+                                                    selectedIds + note.id
+                                                }
                                             } else {
-                                                selectedIds + note.id
+                                                onNoteClick(note)
                                             }
-                                        } else {
-                                            onNoteClick(note)
-                                        }
-                                    },
-                                    onLongClick = { selectedIds = selectedIds + note.id }
-                                )
+                                        },
+                                        onLongClick = { selectedIds = selectedIds + note.id }
+                                    )
+                                }
                             }
+                        }
                         }
                     }
                 }
@@ -638,7 +720,9 @@ fun MainScreen(
                 // 頂欄同一時間淡出／滑入，和側欄交接。
                 // 這裡在 Box 作用域裡，必須指名頂層版本，否則會撞上 RowScope 的擴充函式。
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = !expanded,
+                    // 平板（expanded）平常沒有頂欄，但多選時一定要有：
+                    // 否則長按選中之後沒有刪除入口，只能按返回取消。
+                    visible = !expanded || selectedIds.isNotEmpty(),
                     enter = fadeIn(motion.defaultEffectsSpec()) +
                             slideInVertically(animationSpec = motion.defaultSpatialSpec()) { -it / 3 },
                     exit = fadeOut(motion.fastEffectsSpec()) +
@@ -672,31 +756,41 @@ fun MainScreen(
                         SelectionTopBar(
                             count = selectedIds.size,
                             onClose = { selectedIds = emptySet() },
-                            onShare = {
-                                scope.launch { snackbarHostState.showSnackbar(strings.share) }
-                            },
-                            onExport = {
-                                scope.launch { snackbarHostState.showSnackbar(strings.export) }
-                            },
                             onDelete = {
                                 onDeleteNotes(selectedIds.toList())
                                 selectedIds = emptySet()
+                            },
+                            // 平板：側欄壓在最上層，多選頂欄要讓開 80dp，否則關閉鈕被蓋住。
+                            modifier = Modifier.padding(
+                                start = if (expanded) 80.dp else Space.s0
+                            )
+                        ) {
+                            // 分享／匯出目前是筆記頁獨有的占位動作；書庫不傳這個插槽。
+                            IconButton(onClick = {
+                                scope.launch { snackbarHostState.showSnackbar(strings.share) }
+                            }) {
+                                Icon(Icons.Default.Share, contentDescription = strings.share)
                             }
-                        )
+                            IconButton(onClick = {
+                                scope.launch { snackbarHostState.showSnackbar(strings.export) }
+                            }) {
+                                Icon(Icons.Default.SaveAlt, contentDescription = strings.export)
+                            }
+                        }
                     } else {
                         HomeTopBar(
                             avatarPath = avatarPath,
                             noteLayout = settings.noteLayout,
                             onToggleLayout = {
-                                onSettingsChange(
-                                    settings.copy(
-                                        noteLayout = if (settings.noteLayout == NoteLayout.MASONRY) {
+                                onSettingsChange { current ->
+                                    current.copy(
+                                        noteLayout = if (current.noteLayout == NoteLayout.MASONRY) {
                                             NoteLayout.LIST
                                         } else {
                                             NoteLayout.MASONRY
                                         }
                                     )
-                                )
+                                }
                             },
                             onOpenSort = { showSortSheet = true },
                             onOpenSearch = onOpenSearch,
@@ -749,6 +843,7 @@ private fun HomeSideRail(
     onMenu: () -> Unit
 ) {
     val strings = LocalAppStrings.current
+    val compactHeight = LocalConfiguration.current.screenHeightDp < 480
     Surface(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)) {
         Row(modifier = Modifier.fillMaxHeight()) {
             Column(
@@ -757,7 +852,11 @@ private fun HomeSideRail(
                     .width(80.dp)
                     .statusBarsPadding()
                     .navigationBarsPadding()
-                    .padding(vertical = Space.s200),
+                    .padding(vertical = Space.s200)
+                    // 短橫屏放不下整列時允許捲動；此時不能用 weight 無限撐高。
+                    .then(
+                        if (compactHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier
+                    ),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(Space.s150)
             ) {
@@ -787,7 +886,13 @@ private fun HomeSideRail(
                     description = strings.sort,
                     onClick = onOpenSort
                 )
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(
+                    modifier = if (compactHeight) {
+                        Modifier.height(Space.s200)
+                    } else {
+                        Modifier.weight(1f)
+                    }
+                )
                 Avatar(
                     avatarPath = avatarPath,
                     // 和上面幾顆按鈕同一個尺寸，不再是小頭像。
@@ -869,10 +974,11 @@ private fun HomeTopBar(
                             maxLines = 1,
                             modifier = Modifier.weight(1f)
                         )
-                        // 兩顆按鈕之間留 8dp。緊挨著時兩個圓形遮罩會連成一塊，
-                        // 看起來像一個古怪的長條，也分不清是兩個獨立動作。
+                        // 兩顆按鈕之間留 16dp：視覺圓只有 32dp，但 M3 的最小觸控區是 48dp，
+                        // 每顆各往外擴 8dp。間距只有 8dp 時兩個觸控區會重疊 8dp，
+                        // 點在排版鈕右緣會打到排序鈕——就是「切換有時沒反應」的另一個來源。
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(Space.s100),
+                            horizontalArrangement = Arrangement.spacedBy(Space.s200),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             CircleIconButton(
@@ -914,57 +1020,6 @@ private fun HomeTopBar(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SelectionTopBar(
-    count: Int,
-    onClose: () -> Unit,
-    onShare: () -> Unit,
-    onExport: () -> Unit,
-    onDelete: () -> Unit
-) {
-    val strings = LocalAppStrings.current
-    Surface(color = MaterialTheme.colorScheme.surface) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(Space.s800)
-                    .padding(horizontal = Space.s100),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = strings.cancel)
-                }
-                Text(
-                    text = strings.selectedCount(count),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onShare) {
-                    Icon(Icons.Default.Share, contentDescription = strings.share)
-                }
-                IconButton(onClick = onExport) {
-                    Icon(Icons.Default.SaveAlt, contentDescription = strings.export)
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = strings.delete,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(Space.s150))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
 private fun WelcomeState(innerPadding: PaddingValues, onChooseFolder: () -> Unit) {
     val strings = LocalAppStrings.current
     Box(
@@ -974,7 +1029,11 @@ private fun WelcomeState(innerPadding: PaddingValues, onChooseFolder: () -> Unit
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Space.s200),
-            modifier = Modifier.padding(Space.s400)
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(Space.s400)
         ) {
             Box(
                 modifier = Modifier
@@ -1086,35 +1145,31 @@ fun NoteCard(
     val motion = MaterialTheme.motionScheme
     val dateFormat = remember { SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()) }
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (pressed) 0.97f else 1f,
-        animationSpec = motion.defaultSpatialSpec(),
-        label = "card-press"
-    )
-    val borderColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.outlineVariant,
+    // 卡片不描邊：選中與否改由容器色表達。細邊在這套配色裡幾乎看不見，
+    // 卻讓整頁多出一圈噪點；色塊分層已經足夠說明「這張被選中」。
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
         animationSpec = motion.defaultEffectsSpec(),
-        label = "card-border"
-    )
-    val borderWidth by animateDpAsState(
-        targetValue = if (selected) Space.s25 else 1.dp,
-        animationSpec = motion.defaultSpatialSpec(),
-        label = "card-border-width"
+        label = "card-container"
     )
 
     val shape = RoundedCornerShape(cardShape.radiusDp.dp)
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = pressScale
-                scaleY = pressScale
-            }
             // 官方 ripple 由原生 RippleDrawable 繪製，外層 clip 裁不到它，
             // 按住時四角會冒出方形遮罩；改用自繪且依 shape 裁切的波紋。
-            .pressRipple(interactionSource = interactionSource, shape = shape)
+            .pressRipple(
+                interactionSource = interactionSource,
+                shape = shape,
+                pressedAlpha = CARD_RIPPLE_ALPHA,
+                pressedScale = CARD_PRESSED_SCALE,
+                minPressHoldMs = MIN_PRESS_HOLD_MS
+            )
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -1122,65 +1177,105 @@ fun NoteCard(
                 onLongClick = onLongClick
             ),
         shape = shape,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        border = BorderStroke(borderWidth, borderColor)
+        colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
         Column(
             modifier = Modifier.padding(Space.s200),
             verticalArrangement = Arrangement.spacedBy(Space.s100)
         ) {
-            // 筆記本標籤在左、來源格式徽章在右。兩者都沒有時整行不佔高度，
-            // 免得 Column 的 spacedBy 多留一段空白。
             val sourceFormat = ImportFormat.fromId(note.sourceFormat)
-            if (showDetails || sourceFormat != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (showDetails) {
-                        Text(
-                            text = note.notebookTag,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                    if (sourceFormat != null) {
-                        FormatBadge(
-                            format = sourceFormat,
-                            modifier = Modifier.padding(start = Space.s100)
-                        )
-                    }
-                }
-            }
-            Text(
-                text = note.title.ifEmpty { strings.untitled },
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (showDetails && note.content.isNotEmpty()) {
+            // 筆記本標籤留在最上面一行；格式徽章已經改成標題行內的元素，
+            // 標題換行時它自然落在最後一行的尾端（見 NoteTitle）。
+            if (showDetails && note.notebookTag.isNotBlank()) {
                 Text(
-                    text = summaryOf(note.content.trimStart(), 80),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = note.notebookTag,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (showDetails) {
+            NoteTitle(
+                title = note.title.ifEmpty { strings.untitled },
+                format = sourceFormat,
+                // 瀑布流卡片窄，標題多留一行，行內徽章才不會因為截斷被擠掉；
+                // 列表模式整列很寬，兩行已經足夠。
+                maxLines = if (showDetails) 3 else 2
+            )
+            // 列表模式原本只剩標題，一列看過去很空；補一行摘要（含時間），
+            // 和瀑布流共用同一組字級與顏色，只是行數少一點。
+            if (note.content.isNotEmpty()) {
                 Text(
-                    text = dateFormat.format(Date(note.lastModified)),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = summaryOf(note.content.trimStart(), if (showDetails) 80 else 120),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (showDetails) 3 else 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+            }
+            Text(
+                text = dateFormat.format(Date(note.lastModified)),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** 標題裡的行內徽章代號；同一段文字只會有一個。 */
+private const val FORMAT_BADGE_KEY = "format-badge"
+
+/** 行內徽章的佔位尺寸。用 sp 定義，字級放大時跟著放大，不會把標籤裁掉。 */
+private val BADGE_WIDTH = 60.sp
+private val BADGE_HEIGHT = 22.sp
+
+/**
+ * 標題 + 行內格式徽章。
+ *
+ * 徽章不是另起一列，而是 `AnnotatedString` 的行內內容：標題只有一行時它跟在字尾，
+ * 換行時它就跟著最後一行，符合「貼在標題最後一行最右側」的要求——用 Row 排的話
+ * 徽章會佔掉每一行的寬度，168dp 的瀑布流卡片上標題會被擠成三行。
+ *
+ * 佔位用 sp 定義，所以 200% 字級時徽章與標題一起放大，不會出現「小徽章配大字」。
+ */
+@Composable
+private fun NoteTitle(title: String, format: ImportFormat?, maxLines: Int) {
+    val text = remember(title, format) {
+        buildAnnotatedString {
+            append(title)
+            if (format != null) {
+                // 不換行空格：徽章不要和最後一個字被拆到不同行。
+                append('\u00A0')
+                appendInlineContent(FORMAT_BADGE_KEY, format.shortLabel)
             }
         }
     }
+    // 行內內容對照表只在格式變了才重建：每次重組都配一份新 map 會讓 Text 重排。
+    val inlineContent = remember(format) {
+        if (format == null) {
+            emptyMap()
+        } else {
+            mapOf(
+                FORMAT_BADGE_KEY to InlineTextContent(
+                    Placeholder(
+                        width = BADGE_WIDTH,
+                        height = BADGE_HEIGHT,
+                        placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+                    )
+                ) {
+                    FormatBadge(format)
+                }
+            )
+        }
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        inlineContent = inlineContent
+    )
 }
 
 /**
@@ -1207,15 +1302,13 @@ private fun FormatBadge(format: ImportFormat, modifier: Modifier = Modifier) {
         color = container,
         contentColor = content
     ) {
+        // 行內內容給的是固定佔位，填滿它、置中排列，每個格式的膠囊寬度才會一致。
         Row(
-            modifier = Modifier.padding(
-                start = Space.s75,
-                end = Space.s100,
-                top = Space.s25,
-                bottom = Space.s25
-            ),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = Space.s75),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Space.s50)
+            horizontalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = format.icon,
@@ -1238,7 +1331,6 @@ private val ImportFormat.icon: ImageVector
         ImportFormat.HTML -> Icons.Default.Html
     }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NotebookCard(
     name: String,
@@ -1249,27 +1341,22 @@ private fun NotebookCard(
     onClick: () -> Unit
 ) {
     val strings = LocalAppStrings.current
-    val motion = MaterialTheme.motionScheme
     val dateFormat = remember { SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()) }
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (pressed) 0.97f else 1f,
-        animationSpec = motion.defaultSpatialSpec(),
-        label = "notebook-press"
-    )
 
     val shape = RoundedCornerShape(cardShape.radiusDp.dp)
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = pressScale
-                scaleY = pressScale
-            }
-            // 同上：波紋自繪並依 shape 裁切，遮罩才會跟著卡片圓角。
-            .pressRipple(interactionSource = interactionSource, shape = shape)
-            .combinedClickable(
+            // 單次點擊即開啟，不需要 combinedClickable 的長按判定延遲。
+            .pressRipple(
+                interactionSource = interactionSource,
+                shape = shape,
+                pressedAlpha = CARD_RIPPLE_ALPHA,
+                pressedScale = CARD_PRESSED_SCALE,
+                minPressHoldMs = MIN_PRESS_HOLD_MS
+            )
+            .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
@@ -1279,8 +1366,7 @@ private fun NotebookCard(
         // 兩頁是同一個層級的內容，卡片底色不一樣會像是不同元件。
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        )
     ) {
         Column(
             modifier = Modifier.padding(Space.s200),
@@ -1334,7 +1420,10 @@ fun NewNoteDialog(
         onDismissRequest = onDismiss,
         title = { Text(strings.newNote, style = MaterialTheme.typography.headlineSmall) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Space.s150)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Space.s150)
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },

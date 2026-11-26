@@ -301,6 +301,13 @@ data class AppSettings(
     val readerLineHeightTenths: Int = 17,
     /** 頁邊留白，單位 dp。 */
     val readerMargin: Int = 20,
+    /**
+     * 中文引號改排直角引號（“” → 「」）。
+     *
+     * 預設開：中文書裡的彎引號多半是輸入法帶出來的西文標點，不是作者的本意；
+     * 想讀原樣的人關掉即可，書檔本身不會被改。
+     */
+    val readerCornerQuotes: Boolean = true,
     /** 啟動頁：全部筆記或書庫（全部圖書）。 */
     val homeTarget: HomeTarget = HomeTarget.NOTES,
     /**

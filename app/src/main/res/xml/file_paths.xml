@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 分享用的暫存檔集中放在 cache/exports，不暴露其他目錄。 -->
+<!-- 分享用的暫存檔集中放在 cache/exports；書庫的原檔另外以唯讀方式授權。
+     只開這兩條路徑，其他目錄（資料庫、設定、筆記）不在授權範圍內。 -->
 <paths>
     <cache-path name="exports" path="exports/" />
+    <!-- 書庫原檔：長按分享時直接把檔案交出去，不必先複製一份到 cache。 -->
+    <files-path name="books" path="books/" />
 </paths>

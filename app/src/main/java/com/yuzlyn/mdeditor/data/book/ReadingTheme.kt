@@ -50,6 +50,7 @@ enum class ReadingTheme(
         margin: Int = 20,
         lineHeight: Float = 1.7f,
         mode: ReaderMode = ReaderMode.PAGED,
+        cornerQuotes: Boolean = false,
         fontFamilyCss: String = ""
     ): ReaderStyle = ReaderStyle(
         background = colors.background,
@@ -61,6 +62,7 @@ enum class ReadingTheme(
         lineHeight = lineHeight,
         mode = mode,
         dark = colors.dark,
+        cornerQuotes = cornerQuotes,
         fontFamilyCss = fontFamilyCss
     )
 

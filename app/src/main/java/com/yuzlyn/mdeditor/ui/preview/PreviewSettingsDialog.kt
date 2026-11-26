@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
@@ -43,7 +45,10 @@ fun PreviewSettingsDialog(
         onDismissRequest = onDismiss,
         title = { Text(strings.previewSettings, style = MaterialTheme.typography.headlineSmall) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Space.s150)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Space.s150)
+            ) {
                 Text(
                     text = strings.previewFontSize,
                     style = MaterialTheme.typography.labelLarge,
@@ -97,6 +102,10 @@ fun PreviewSettingsDialog(
                     onChange(config.copy(headingAnchors = it))
                 }
                 SettingToggle(strings.previewMath, config.math) { onChange(config.copy(math = it)) }
+                // 與閱讀器的同名開關各自獨立：筆記與書的排版口味可以不同。
+                SettingToggle(strings.previewCornerQuotes, config.cornerQuotes) {
+                    onChange(config.copy(cornerQuotes = it))
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(strings.done) } },
@@ -116,7 +125,8 @@ private fun SettingToggle(label: String, checked: Boolean, onCheckedChange: (Boo
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
         )
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }

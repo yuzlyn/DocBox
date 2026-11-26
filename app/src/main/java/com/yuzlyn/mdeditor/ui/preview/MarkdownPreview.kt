@@ -118,6 +118,8 @@ fun MarkdownPreview(
         )
         webView.evaluateJavascript("window.applyConfig(${config.toJs()})", null)
         webView.evaluateJavascript("window.updateMarkdown(${jsString(markdown)})", null)
+        // 一定排在 updateMarkdown 之後：換章節點是渲染時新建的，先開開關再渲染等於白做。
+        webView.evaluateJavascript("window.setCornerQuotes(${config.cornerQuotes})", null)
         // 直排要在內容渲染後才量得到寬度，交由頁面內的 setVertical 處理捲動起點。
         webView.evaluateJavascript("window.setVertical($vertical)", null)
     }

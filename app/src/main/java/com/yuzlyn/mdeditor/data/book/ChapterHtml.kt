@@ -64,6 +64,13 @@ data class ReaderStyle(
     val textScale: Int = 100,
     /** 直排（由上而下、由右而左）。 */
     val vertical: Boolean = false,
+    /**
+     * 中文引號改排直角引號（“” → 「」）。見 [CornerQuotes]。
+     *
+     * 這一項在**生成 HTML 時**就改掉，不是載入後才用腳本換：分頁是靠量測 DOM 算出來的，
+     * 字形寬度一變就得重新分頁，先換好只量一次，頁碼才不會跳。
+     */
+    val cornerQuotes: Boolean = false,
     /** 頁邊留白，單位 px（等於 dp）。寫進 CSS，書頁才會整窗翻動而不是在框裡滑。 */
     val margin: Int = 20,
     val lineHeight: Float = 1.7f,
@@ -208,7 +215,11 @@ data class ReaderStyle(
               position: fixed; top: 0; right: 0; bottom: 0; left: 0;
               margin: 0 !important; padding: 0 !important; border: 0 !important;
               overflow: hidden;
+              /* 分頁模式下腳本會把它改成 overflow-x:auto（要合成器捲動才不掉幀），
+                 捲軸不能因此冒出來——位移全由腳本控制，使用者不該看到也拖不動它。 */
+              scrollbar-width: none;
             }
+            #__viewport::-webkit-scrollbar { width: 0; height: 0; display: none; }
             /* 章節容器：一次只裝一章，所以它就是一頁長條。
                margin/padding 壓回 0（不加 !important，滾動模式要能用內聯樣式改）：
                書的 `div { margin: 1em }` 會連 #__stage 一起加框，整頁就往內縮一圈。 */
@@ -342,7 +353,7 @@ object ChapterHtml {
             append("</head><body")
             if (cover) append(" class=\"rd-cover\"")
             append("><div id=\"__viewport\"><div id=\"__stage\">")
-            append(sectionOf(book, content, chapter, withLinks = false))
+            append(sectionOf(book, content, chapter, style.cornerQuotes, withLinks = false))
             append("</div></div>")
             append(
                 script(
@@ -366,14 +377,23 @@ object ChapterHtml {
      *
      * 片段帶 `<link>`：換到用另一套樣式表的章時，腳本的 `adoptLinks()`
      * 會把它們搬進 `<head>`，所以換章之後的版式跟第一次打開時完全一樣。
+     *
+     * [cornerQuotes] 一定要跟主文件的 [ReaderStyle.cornerQuotes] 一致：
+     * 換章是就地換 DOM，沒有第二次改寫的機會，這裡漏掉就會出現「前半本是「」、
+     * 翻過章界又變回 “”」。
      */
-    fun fragment(book: Book, content: ChapterContent, chapter: Int): String =
-        sectionOf(book, content, chapter, withLinks = true)
+    fun fragment(
+        book: Book,
+        content: ChapterContent,
+        chapter: Int,
+        cornerQuotes: Boolean = false
+    ): String = sectionOf(book, content, chapter, cornerQuotes, withLinks = true)
 
     private fun sectionOf(
         book: Book,
         content: ChapterContent,
         chapter: Int,
+        cornerQuotes: Boolean,
         withLinks: Boolean
     ): String {
         val raw = content.html
@@ -386,6 +406,8 @@ object ChapterHtml {
         val cleanBody = rewriteStyleBlocks(
             book, content.basePath, rewriteUrls(book, content.basePath, stripScripts(body))
         )
+        // 引號改寫放在最後：前面的路徑改寫與腳本剝除都按原樣比對，不該先看到「」。
+        val quotedBody = if (cornerQuotes) CornerQuotes.apply(cleanBody) else cleanBody
         // `<link>` 一律由呼叫端決定放哪裡：主文件放 <head>，換章片段放最前面
         //（腳本會搬去 <head>）。留在這裡會重複載入同一份 CSS。
         // `<title>` / `<meta>` / `<base>` 是文件級的，塞進 body 沒有意義，一併清掉。
@@ -403,7 +425,7 @@ object ChapterHtml {
             if (bodyClass.isNotBlank()) append(' ').append(escape(bodyClass))
             append("\" data-c=\"").append(chapter).append("\"><div class=\"__cols\">")
             append(headStyle)
-            append(cleanBody)
+            append(quotedBody)
             append("</div></section>")
         }
     }
@@ -561,7 +583,7 @@ object ChapterHtml {
   var N = 1;         // 本章正文頁數（不含幻影頁）
   var P = 1;         // 一頁的步進（px）
   var laying = false;           // 排版中：此刻的 scroll 事件不算數
-  var glideRaf = 0, glideTimer = 0, nudgeTimer = 0;
+  var glideRaf = 0, glideTimer = 0, nudgeTimer = 0, slideTimer = 0;
   var lastDragAt = 0;
   var switchSeq = 0;            // 換章序號：樣式表晚到時用來判斷「還是不是那一次」
 
@@ -628,6 +650,9 @@ object ChapterHtml {
     s.display = ''; s.position = ''; s.left = ''; s.right = ''; s.top = ''; s.bottom = '';
     s.margin = ''; s.width = ''; s.height = ''; s.padding = ''; s.boxSizing = '';
     s.overflow = ''; s.flexDirection = ''; s.flexWrap = '';
+    // 分頁模式的翻頁動畫是「瞬移＋transform 補位」，換模式時如果留著
+    // transform，整條長卷會一直偏著一頁。
+    s.transition = ''; s.transform = ''; s.willChange = '';
     v.position = ''; v.overflow = ''; v.overflowX = ''; v.overflowY = '';
     v.padding = ''; v.boxSizing = ''; v.touchAction = '';
     v.left = ''; v.right = ''; v.top = ''; v.bottom = '';
@@ -738,9 +763,23 @@ object ChapterHtml {
     view.style.position = 'fixed';
     view.style.left = '0'; view.style.top = '0';
     view.style.right = '0'; view.style.bottom = '0';
-    view.style.overflow = 'hidden';
+    // 分頁容器必須是**真的可捲動**的盒子（overflowX:auto），不能用 overflow:hidden：
+    // hidden 的盒子在 Chrome 裡不算可捲動區域，不建立合成滾動層，於是每次寫
+    // scrollLeft 都退化成「主執行緒重繪」。橫排一頁是 CSS 多欄切出來的碎片，
+    // 主執行緒畫不動，240ms 的翻頁動畫就中間掉幀；直排一頁是普通文字流，畫得動，
+    // 所以只有橫排看起來卡。改成 auto 之後位移由合成器直接改，新露出的 tile
+    // 交給光柵執行緒補，動畫不再跟「畫得完畫不完」綁在一起。
+    // 使用者拖不動它：`touch-action: none` 已經把觸控全部接管給腳本，捲軸另外藏掉。
+    view.style.overflowX = 'auto';
+    view.style.overflowY = 'hidden';
+    view.style.overscrollBehavior = 'none';
 
     stage.style.boxSizing = 'content-box';
+    // 這一條是翻頁動畫的關鍵：整個書頁區塊從頭到尾都維持成一個合成層。
+    // 翻頁時改的只是它的 transform，合成執行緒直接搬，不重繪；
+    // 若改成「動畫開始才 will-change、結束就清掉」，每次促銷／降級
+    // 合成層都要把整片內容重畫一遍——桌機實測光柵化時間因此漲了 8 倍。
+    stage.style.willChange = 'transform';
     // 左右各多留一頁：這就是幻影頁。留白必須是 padding——塊級的
     // margin 不計入可捲動區域，滾到盡頭時會被吞掉。
     stage.style.padding = M + 'px ' + (M + P) + 'px';
@@ -848,15 +887,38 @@ object ChapterHtml {
   }
 
   // ── 平滑位移 ────────────────────────────────────────────────────────
-  // 自己逐幀寫 scrollLeft，跟 foliate 一樣。不用 CSS
-  // `scroll-behavior: smooth`：那個時長不可控，而且會跟翻頁狀態機打架。
+  //
+  // 兩種做法，看模式。差別不是風格問題，是「誰在推這一幀」：
+  //
+  // **捲動模式**：自己逐幀寫 scrollTop/scrollLeft（`glideScroll`）。
+  //
+  // **分頁模式**：位移交給合成執行緒（`slideTo`）。做法是
+  //   ① 先把捲動位置「瞬間」移到目標頁——DOM 沒有變，瀏覽器只要光柵化
+  //      新露出的那一頁；
+  //   ② 再把整條長卷往反方向平移一個位移量，用 CSS transition 收回 0。
+  // 動畫期間改的是合成層的 transform，主執行緒一幀都不用插手，就算它被
+  // 別的事佔住，動畫也照樣逐幀播完。舊版每一幀都在主執行緒寫 scrollLeft，
+  // 那一幀只要沒趕上 16.7ms 的預算，畫面就頓一下——手機上就是「翻頁有點卡」。
+  //
+  // 為什麼不用 `scroll-behavior: smooth` 或 `scrollTo({behavior:'smooth'})`：
+  // 桌機實測把主執行緒塞住 250ms，捲動位置一格都沒動——它一樣是主執行緒
+  // 動畫，換了等於沒換。
   function stopGlide() {
     if (glideRaf) { cancelAnimationFrame(glideRaf); glideRaf = 0; }
     if (glideTimer) { clearTimeout(glideTimer); glideTimer = 0; }
     if (nudgeTimer) { clearTimeout(nudgeTimer); nudgeTimer = 0; }
+    stopSlide();
   }
 
-  function glideTo(target, ms) {
+  /** 收掉分頁的合成層動畫，把長卷恢復成「沒有位移」。 */
+  function stopSlide() {
+    if (slideTimer) { clearTimeout(slideTimer); slideTimer = 0; }
+    if (!stage) return;
+    stage.style.transition = 'none';
+    stage.style.transform = '';
+  }
+
+  function glideScroll(target, ms) {
     stopGlide();
     target = clamp(target, 0, posMax());
     var from = readPos();
@@ -883,11 +945,52 @@ object ChapterHtml {
     glideTimer = setTimeout(finish, ms + 80);
   }
 
-  /** 已經在盡頭還要往前：回彈一下，給「這裡沒有下一頁」一個確認感。 */
+  function slideTo(target, ms) {
+    stopGlide();
+    target = clamp(target, 0, posMax());
+    var from = readPos();
+    var delta = target - from;
+    if (document.hidden || Math.abs(delta) < 1) { writePos(target); report(); return; }
+    ms = ms || 220;
+    // 瞬間到位。這一刻畫面上看到的是「目標頁」，所以下一步要把它推回去。
+    writePos(target);
+    // 內容因這次捲動在畫面上的位移：橫排往左（−delta），直排 negative
+    // scroll 往右（+delta）。要補回翻頁前的位置，所以取反。
+    stage.style.transition = 'none';
+    stage.style.transform = 'translate3d(' + ((NEG ? -1 : 1) * delta) + 'px,0,0)';
+    // 讀一次版面，讓上面這組「補位」先結算；否則它和下面的終點會被合併成
+    // 一次樣式變更，動畫根本不會跑。
+    void stage.offsetWidth;
+    stage.style.transition = 'transform ' + ms + 'ms cubic-bezier(.22,.61,.36,1)';
+    stage.style.transform = 'translate3d(0,0,0)';
+    // 位置回報排在動畫「已經交出去」之後：它會走一趟 JNI 再叫 Compose 重組，
+    // 擺在啟動動畫之前，等於自己先吃掉第一幀的預算。
+    report();
+    // 收尾：清除 inline 位移。不重報位置——滑動期間位移早就寫定了，
+    // 再報一次只是多一趟 JNI ＋ 一次重組，正好落在動畫結束那一幀上。
+    slideTimer = setTimeout(function () {
+      slideTimer = 0;
+      stage.style.transition = 'none';
+      stage.style.transform = '';
+    }, ms + 60);
+  }
+
+  function glideTo(target, ms) {
+    if (PAGED) slideTo(target, ms);
+    else glideScroll(target, ms);
+  }
+
+  /**
+   * 已經在盡頭還要往前：回彈一下，給「這裡沒有下一頁」一個確認感。
+   *
+   * 這裡刻意用逐幀寫捲動位置的那條路：回彈只有 140px、130ms，而且它本來
+   * 就要「先離開頁界再彈回來」，用合成層要兩段 transform 接力，反而更容易
+   * 在中途被打斷而露餡。
+   */
   function nudge(dir) {
     var base = posOfPage(clamp(rawPage(), 1, N));
-    glideTo(base + dir * Math.min(140, P * 0.3), 130);
-    nudgeTimer = setTimeout(function () { glideTo(base, 170); }, 160);
+    glideScroll(base + dir * Math.min(140, P * 0.3), 130);
+    nudgeTimer = setTimeout(function () { glideScroll(base, 170); }, 160);
   }
 
   // ── 換章：就地換內容，不重新載入文件 ────────────────────────────────
@@ -1148,7 +1251,8 @@ object ChapterHtml {
       if (COVER || !e.touches || e.touches.length !== 1) { pan = null; return; }
       stopGlide();
       var t = e.touches[0];
-      pan = { x: t.clientX, y: t.clientY, from: readPos(), lx: t.clientX, lt: stamp(), v: 0, on: false };
+      var now = stamp();
+      pan = { x: t.clientX, y: t.clientY, from: readPos(), lx: t.clientX, lt: now, t0: now, v: 0, on: false };
     }, { passive: true });
 
     document.addEventListener('touchmove', function (e) {
@@ -1158,7 +1262,9 @@ object ChapterHtml {
       if (!pan.on) {
         if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
         // 明顯是縱向就放手，別跟長按選字／圖片拖曳搶手勢。
-        if (Math.abs(dx) <= Math.abs(dy)) { pan = null; return; }
+        // 留 0.9 的餘裕：拇指划弧線時縱向分量常常跟橫向差不多，
+        // 從前用嚴格的大於，這種手勢會被直接丟掉——也是「滑不動」的來源。
+        if (Math.abs(dx) < Math.abs(dy) * 0.9) { pan = null; return; }
         pan.on = true;
       }
       if (e.cancelable) e.preventDefault();
@@ -1173,18 +1279,39 @@ object ChapterHtml {
       pan = null;
       if (!p || !p.on) return;
       lastDragAt = stamp();
-      // 放手時只做一件事：吸附到「離手指最近的那一頁」。
+      // 放手時只做一件事：決定要停在哪一頁。
       //
-      // 距離決定方向，速度只補一腳：只有當位移幾乎停在頁界上（不到
-      // 0.18 頁）又甩得夠快，才再往前走一頁。舊版照 foliate 的
-      // `速度 × 一頁` 直接加進位移裡，真機上一甩就是三四頁，
-      // 讀者根本猜不到會停在哪——這正是「邏輯混亂」的體感來源。
-      var at = readPos();
-      var k = pageOf(at);
-      var off = at - posOfPage(k);
-      var vel = V ? p.v : -p.v;
+      // 判斷的基準是「這次拖了幾頁」，不是「離最近的頁界多遠」。後者會出錯：
+      // 拖了 0.62 頁時 pageOf 已經先四捨五入到下一頁，再拿殘差去判方向，
+      // 就成了「拖越多反而彈回」。
+      //
+      // 每頁的門檻是 0.28 頁，甩得夠快（>0.25px/ms，約 250px/s）也翻。舊版只認「幾乎已經
+      // 對齊頁界（不到 0.18 頁）又甩得夠快」，於是拖三分之一頁再放手會原路
+      // 彈回——讀者眼裡就是「滑不動，只能點」。一頁在手機上約 350px，
+      // 三分之頁也才一百出頭，那正是大部分人一甩的距離。
+      //
+      // 不做「速度 × 頁數」的慣性：一甩三四頁，讀者猜不到會停在哪，
+      // 那是另一種手感亂。
+      var raw = (readPos() - p.from) / P;     // 拖了幾頁，正數＝往閱讀方向
+      // 速度取兩把：最後一格的瞬時速度（甩出去那一下）和整段手勢的平均速度。
+      // 只看瞬時的話，手指在放手前微微減速就判不出「這是甩」；只看平均的話，
+      // 拖到一半停住想一想再放手，也會被當成甩。
+      var vel = V ? p.v : -p.v;               // 換算成「往閱讀方向為正」
       if (!isFinite(vel)) vel = 0;
-      if (Math.abs(off) < P * 0.18 && Math.abs(vel) > 0.45) k += vel > 0 ? 1 : -1;
+      var dur = Math.max(1, stamp() - p.t0);
+      var avg = raw * P / dur;
+      if (!isFinite(avg)) avg = 0;
+      var whole = raw < 0 ? Math.ceil(raw) : Math.floor(raw);
+      var frac = raw - whole;
+      var fast = Math.abs(vel) >= 0.25 || Math.abs(avg) >= 0.25;
+      // 方向一律看淨位移。拖出去又拖回來（raw≈0）不算翻頁——那裡沒有方向，
+      // 從前用 `raw >= 0 ? 1 : -1` 會讓這種手勢預設往前跳一頁。
+      // 甩的門檻另外要求至少走了 5% 頁寬，免得指尖一點抖動就翻頁。
+      var dir = raw > 0 ? 1 : (raw < 0 ? -1 : 0);
+      var flick = fast && Math.abs(raw) >= 0.05;
+      var turn = (Math.abs(frac) >= 0.28 || flick) ? dir : 0;
+      if (!isFinite(turn)) turn = 0;
+      var k = pageOf(p.from) + whole + turn;
       if (k <= 0) {
         if (!switchTo(CUR - 1, 1)) glideTo(posOfPage(1));
         return;

@@ -8,8 +8,18 @@
       以及啟動視窗交給 Compose 之後、第一幀畫出來之前露出的底色。
       所以它必須跟 values-night 的深色版本成對，否則夜間會閃白。
     -->
-    <style name="Theme.MDEditor" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.MDEditor.Base" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:colorBackground">@color/splash_background</item>
+    </style>
+
+    <!-- AndroidX SplashScreen：API 26–30 也沿用 Android 12 的開屏層級。 -->
+    <!-- 不指定 windowSplashScreenAnimatedIcon：留空時系統會拿「啟動的那條 activity-alias」
+         的圖示，也就是使用者選的字形 + 那套配色，和桌面圖示完全一致。
+         指定成某一份 drawable 反而會固定在預設字形上。 -->
+    <style name="Theme.MDEditor" parent="Theme.SplashScreen.IconBackground">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.MDEditor.Base</item>
     </style>
 </resources>

@@ -1,9 +1,10 @@
 package com.yuzlyn.mdeditor.ui.component
 
+import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,10 +24,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -40,14 +47,20 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.ui.platform.TextToolbar
+import androidx.compose.ui.platform.TextToolbarStatus
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextRange
@@ -61,11 +74,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
+import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.theme.Space
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * 每一欄的字元範圍，以及「字元索引 → (欄, 列)」的反查表。
@@ -464,6 +480,50 @@ internal fun buildVerticalColumns(
  * 舊版是字距 1.5em、列距 1.3em——正好把兩者寫反，所以讀起來「字太散、行太擠」。
  */
 /**
+ * 長按選取：以「整行（整欄）」為單位，回傳 [firstColumn] 到 [secondColumn] 的 char 範圍。
+ *
+ * 直排的一欄就是一行，長按選一行最接近使用者的直覺：複製出來的是一整句話，
+ * 不會斷在半個詞上。往後拖（左邊）或往前拖（右邊）都只是把比較遠的那一欄算進來。
+ * 空欄（沒有任何字格）回傳 null，呼叫端就當成沒選到東西。
+ */
+internal fun anchoredLineRange(
+    columns: VerticalColumns,
+    firstColumn: Int,
+    secondColumn: Int
+): Pair<Int, Int>? {
+    if (columns.count == 0) return null
+    val lo = min(firstColumn, secondColumn).coerceIn(0, columns.count - 1)
+    val hi = max(firstColumn, secondColumn).coerceIn(0, columns.count - 1)
+    val fromCell = columns.cellStarts[lo]
+    val toCell = columns.cellEnds[hi]
+    if (toCell <= fromCell) return null
+    val from = columns.cells.getOrElse(fromCell) { 0 }
+    val to = columns.cells.getOrElse(toCell) { from }
+    if (to <= from) return null
+    return from to to
+}
+
+/**
+ * 吞掉系統選取工具列的替身。
+ *
+ * 真正接收輸入的 [BasicTextField] 只有 1dp、完全透明，它的選取工具列卻會照著
+ * 1dp 的框定位——不論選到哪一行都擠在畫面角落，和我們自己的工具列打架。
+ * 直排的選取由 [VerticalBodyEditor] 自己處理，這裡讓它閉嘴就好。
+ */
+private object SilentTextToolbar : TextToolbar {
+    override val status: TextToolbarStatus get() = TextToolbarStatus.Hidden
+    override fun showMenu(
+        rect: Rect,
+        onCopyRequested: (() -> Unit)?,
+        onPasteRequested: (() -> Unit)?,
+        onCutRequested: (() -> Unit)?,
+        onSelectAllRequested: (() -> Unit)?
+    ) = Unit
+
+    override fun hide() = Unit
+}
+
+/**
  * 游標停在代理對中間時，往外推到最近的合法邊界。
  *
  * 組字（IME composition）期間不動：那時的字串本來就可能是半成品，
@@ -492,7 +552,7 @@ private fun snapOffset(text: String, offset: Int): Int {
     return index
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun VerticalBodyEditor(
     value: TextFieldValue,
@@ -508,6 +568,16 @@ fun VerticalBodyEditor(
     accentColor: Color = MaterialTheme.colorScheme.primary,
     variantColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
+    val strings = LocalAppStrings.current
+    val clipboard = LocalClipboardManager.current
+    // 複製成功後工具列上的字樣短暫換成「已複製」，一秒多之後換回來。
+    var copiedHint by remember { mutableStateOf(false) }
+    LaunchedEffect(copiedHint) {
+        if (copiedHint) {
+            delay(1_200)
+            copiedHint = false
+        }
+    }
     val density = LocalDensity.current
     val fontSize = if (textStyle.fontSize.isSp) textStyle.fontSize else 16.sp
     val fontSizePx = with(density) { fontSize.toPx() }
@@ -536,8 +606,14 @@ fun VerticalBodyEditor(
         ),
         // 字型自帶的上下留白不關掉的話，行框會比 lineHeight 高，
         // 每一行都比字格多一點，累積起來游標就壓到字身上。
-        platformStyle = PlatformTextStyle(includeFontPadding = false)
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
+        // 直排的標點要換成豎排字形：直角引號「」、括號、書名號在橫排是左右開口的，
+        // 疊成直書後若不轉九十度，開口會朝著上下而不是引用的文字，看起來就是「躺錯方向」。
+        // `vert`／`vrt2` 是 OpenType 的豎排替換，Noto／思源等 CJK 字型都帶；
+        // 自訂字型沒帶也不會壞，只是維持原本的字形。
+        fontFeatureSettings = "'vert' 1, 'vrt2' 1"
     )
+
     // 格線、游標、點擊換算全部用「量出來的行距」：只要有一邊用要求值，兩者就會越差越遠。
     // 不用 remember：字型是資產檔時是非同步載入的，載入完成後要重新量一次才不會沿用替代字型。
     // 樣本字串固定，TextMeasurer 自己有快取，重算只是一次查表。
@@ -563,7 +639,10 @@ fun VerticalBodyEditor(
         // 游標那一欄在螢幕上的位置，重排後再滑回去，眼睛才跟得上。
         var settledHeight by remember { mutableStateOf(maxHeight) }
         val gutter = 14.dp
-        val gutterPx = with(density) { gutter.toPx() }
+        // 文字區離欄頂的距離＝原本的 LazyRow 上內距 + 行號帶。
+        // 欄現在撐滿整個編輯區高（分隔線才鋪得到頂與底），這兩段要由欄自己留。
+        val textTop = Space.s100 + gutter
+        val textTopPx = with(density) { textTop.toPx() }
         val rows = remember(settledHeight, bottomReserve, cellHeightPx) {
             // 扣掉 LazyRow 的 contentPadding 與欄頂的行號帶，列數才不會超出可視高度。
             val available = with(density) {
@@ -619,6 +698,7 @@ fun VerticalBodyEditor(
 
         // 重排後短暫出現的「光標柄」：淡入 → 停一下 → 淡出。
         // 只有重排（鍵盤升降、旋轉）才觸發，打字時不跳出來干擾。
+        val motion = MaterialTheme.motionScheme
         var hintTick by remember { mutableIntStateOf(0) }
         val hintAlpha = remember { Animatable(0f) }
         LaunchedEffect(hintTick) {
@@ -626,12 +706,12 @@ fun VerticalBodyEditor(
             hintAlpha.snapTo(0f)
             hintAlpha.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(160, easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f))
+                animationSpec = motion.fastEffectsSpec()
             )
             delay(1100)
             hintAlpha.animateTo(
                 targetValue = 0f,
-                animationSpec = tween(280, easing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f))
+                animationSpec = motion.fastEffectsSpec()
             )
         }
 
@@ -720,17 +800,19 @@ fun VerticalBodyEditor(
         // 這只在內容已經長到需要捲動時才有意義；短內容不必為它留白。
         val tailSpace = if (fillsScreen) {
             ((maxWidth - cellWidth) / 2).coerceAtLeast(Space.s200)
-        } else if (writingGuide == WritingGuide.GRID) {
-            // 作文格時內容不滿一屏，也把左邊填滿：整張紙都是格子，字在右邊起排。
+        } else if (writingGuide != WritingGuide.NONE) {
+            // 內容不滿一屏：整張紙都要有線，字從右邊起排，左邊用空欄鋪到畫面左緣。
+            // 分隔線與作文格走同一條規則——只鋪文字區的話，內容短時左半邊就是一片空白。
             (maxWidth - Space.s200 - cellWidth * columns.count).coerceAtLeast(Space.s200)
         } else {
             Space.s200
         }
         val rowWidth = (cellWidth * columns.count + Space.s200 + tailSpace)
             .coerceAtMost(maxWidth)
-        // 左邊那段留白也鋪成格子：用「空欄」把格子補到畫面左緣。
-        // 空欄和文字欄用同一套參數畫格子，所以接縫處不會錯位。
-        val fillerCount = if (writingGuide == WritingGuide.GRID) {
+        // 左邊那段留白也鋪成線：用「空欄」把線補到畫面左緣。
+        // 分隔線與作文格都要填，否則內容短的時候左半邊會是一整片空白，
+        // 看起來就是「紙只鋪了一半」。
+        val fillerCount = if (writingGuide != WritingGuide.NONE) {
             floor(with(density) { tailSpace.toPx() } / cellWidthPx).toInt().coerceAtLeast(0)
         } else {
             0
@@ -749,12 +831,9 @@ fun VerticalBodyEditor(
                 // reverseLayout 下 Compose 會把「end」當成捲動起點那一側（畫面右邊）、
                 // 「start」當成末端（畫面左邊）。直排的「最後面」在左邊，
                 // 所以那段留白一定要放在 start，放 end 會變成第一欄前面多出一片空白。
-                contentPadding = PaddingValues(
-                    start = startPadding,
-                    end = Space.s200,
-                    top = Space.s100,
-                    bottom = bottomReserve
-                ),
+                // 上下不留 padding：欄要撐到整個編輯區高，分隔線才能從頂畫到底；
+                // 原本那兩段內距改由欄內自己留（見下面的內層 Box）。
+                contentPadding = PaddingValues(start = startPadding, end = Space.s200),
                 modifier = Modifier
                     .width(rowWidth)
                     .fillMaxHeight()
@@ -763,7 +842,7 @@ fun VerticalBodyEditor(
                     val start = columns.starts[index]
                     val end = columns.ends[index]
                     val columnRows = columns.rowsOf(index)
-                    // 這一欄畫格子、畫游標、換算點擊，用的都是同一個節拍。
+                    // 這一欄畫游標、換算點擊，用的都是同一個節拍。
                     val rowHeightPx = if (guideAdvancePx > 0f) guideAdvancePx else cellHeightPx
                     val rowBaselinePx = if (guideBaselinePx > 0f) guideBaselinePx else baselinePx
                     // 欄尾與下一欄欄首是同一個 offset：預設畫在下一欄的欄首，
@@ -790,41 +869,109 @@ fun VerticalBodyEditor(
                         modifier = Modifier
                             .width(cellWidth)
                             .fillMaxHeight()
-                            .pointerInput(index, start, end, text.length, gutterPx, rowHeightPx) {
+                            .pointerInput(index, start, end, text.length, textTopPx, rowHeightPx) {
                                 // 不用 detectTapGestures：它在 down 就消費事件，會擋住 LazyRow 的拖曳捲動。
                                 awaitEachGesture {
                                     val down = awaitFirstDown(requireUnconsumed = false)
-                                    val up = waitForUpOrCancellation() ?: return@awaitEachGesture
-                                    // 長按要留給「選取／複製」這類手勢。若當成點擊處理，會把游標搬走、
-                                    // 重新叫出鍵盤，整篇跟著重新分欄——看起來就是長按時畫面亂跳。
-                                    if (up.uptimeMillis - down.uptimeMillis >
-                                        viewConfiguration.longPressTimeoutMillis
-                                    ) {
+                                    val timeout = viewConfiguration.longPressTimeoutMillis
+                                    // 先看這段時間內會不會放開：放開＝點擊，被拖曳取消＝交還 LazyRow。
+                                    val released = withTimeoutOrNull(timeout) {
+                                        waitForUpOrCancellation()
+                                    }
+                                    if (released != null) {
+                                        val current = latestValue.value
+                                        val tap = caretForTap(
+                                            columns = latestColumns.value,
+                                            column = index,
+                                            y = down.position.y - textTopPx,
+                                            cellHeight = rowHeightPx,
+                                            textLength = current.text.length
+                                        )
+                                        // 記住「這次是點在行尾」：同一欄的欄尾與下一欄的欄首是
+                                        // 同一個插入點，沒有這個提示就永遠只能看到行首的游標。
+                                        tailCaret = if (tap.atTail) tap.offset else NO_TAIL_CARET
+                                        onValueChange(
+                                            current.copy(
+                                                selection = TextRange(tap.offset),
+                                                composition = null
+                                            )
+                                        )
+                                        focusTick++
+                                        // 點一下就冒出一次手柄，跟橫排一致（原本只有重排時才彈）。
+                                        hintTick++
                                         return@awaitEachGesture
                                     }
-                                    val current = latestValue.value
-                                    val tap = caretForTap(
-                                        columns = latestColumns.value,
-                                        column = index,
-                                        y = down.position.y - gutterPx,
-                                        cellHeight = rowHeightPx,
-                                        textLength = current.text.length
-                                    )
-                                    // 記住「這次是點在行尾」：同一欄的欄尾與下一欄的欄首是
-                                    // 同一個插入點，沒有這個提示就永遠只能看到行首的游標。
-                                    tailCaret = if (tap.atTail) tap.offset else NO_TAIL_CARET
+                                    // 沒有放開、而且時間真的過去了才算是長按。
+                                    // 不到門檻就結束＝LazyRow 已經接手這次拖曳，這裡不能插手——
+                                    // 否則每一次滑動都會順手選一行、還把捲動卡住。
+                                    if (SystemClock.uptimeMillis() - down.uptimeMillis < timeout) {
+                                        return@awaitEachGesture
+                                    }
+
+                                    // 長按：先選這一整行（欄首到欄尾，不含換行符），
+                                    // 再跟著手指跨欄延伸；拖到哪一欄就把那一行一起圈進來。
+                                    val range = anchoredLineRange(latestColumns.value, index, index)
+                                        ?: return@awaitEachGesture
+                                    tailCaret = NO_TAIL_CARET
                                     onValueChange(
-                                        current.copy(
-                                            selection = TextRange(tap.offset),
+                                        latestValue.value.copy(
+                                            selection = TextRange(range.first, range.second),
                                             composition = null
                                         )
                                     )
-                                    focusTick++
-                                    // 點一下就冒出一次手柄，跟橫排一致（原本只有重排時才彈）。
-                                    hintTick++
+                                    // 選取期間由這裡獨佔手勢：LazyRow 不能同時把畫面拖走，
+                                    // 否則手指停在原處、欄位卻已經滑開，選到的字跟眼睛看到的對不上。
+                                    var itemOffset = listState.layoutInfo.visibleItemsInfo
+                                        .firstOrNull { it.index == index }?.offset ?: 0
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes
+                                            .firstOrNull { it.id == down.id } ?: break
+                                        val pressed = change.pressed
+                                        val position = change.position
+                                        change.consume()
+                                        if (!pressed) break
+                                        // 這一欄可能被捲走過，每次都用它現在的偏移換算手指的位置。
+                                        itemOffset = listState.layoutInfo.visibleItemsInfo
+                                            .firstOrNull { it.index == index }?.offset ?: itemOffset
+                                        val listX = itemOffset + position.x
+                                        val target = listState.layoutInfo.visibleItemsInfo
+                                            .firstOrNull {
+                                                listX >= it.offset && listX < it.offset + it.size
+                                            }?.index ?: continue
+                                        val next = anchoredLineRange(
+                                            columns = latestColumns.value,
+                                            firstColumn = index,
+                                            secondColumn = target
+                                        ) ?: continue
+                                        val current = latestValue.value
+                                        if (current.selection.start != next.first ||
+                                            current.selection.end != next.second
+                                        ) {
+                                            onValueChange(
+                                                current.copy(
+                                                    selection = TextRange(next.first, next.second),
+                                                    composition = null
+                                                )
+                                            )
+                                        }
+                                    }
                                 }
                             }
                     ) {
+                        // 分隔線要鋪滿整個編輯區高（含頂端行號帶與底部工具列預留），
+                        // 所以畫在欄的最外層；它跟著欄一起捲動，不會和文字錯位。
+                        if (writingGuide == WritingGuide.RULED) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                drawVerticalGuide(
+                                    guide = writingGuide,
+                                    cellWidthPx = fontSizePx,
+                                    rowHeightPx = rowHeightPx,
+                                    baselinePx = rowBaselinePx,
+                                    color = variantColor
+                                )
+                            }
+                        }
                         // 行號固定在欄頂；折行續欄（0）不標號，避免把同一行算成好幾行。
                         val lineNumber = columns.lineOf[index]
                         if (showLineNumbers && lineNumber > 0) {
@@ -833,17 +980,20 @@ fun VerticalBodyEditor(
                                 style = numberStyle,
                                 maxLines = 1,
                                 softWrap = false,
-                                modifier = Modifier.align(Alignment.TopCenter)
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = Space.s100)
                             )
                         }
 
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(top = gutter)
+                                .padding(top = textTop, bottom = bottomReserve)
                         ) {
-                            // 輔助線鋪在最底層：文字、選取與游標都壓在它上面。
-                            if (writingGuide != WritingGuide.NONE) {
+                            // 作文格只鋪在文字區裡：格子要跟字對齊，多畫到行號帶或
+                            // 工具列底下反而多出一截沒有字的線。
+                            if (writingGuide == WritingGuide.GRID) {
                                 Canvas(modifier = Modifier.fillMaxSize()) {
                                     drawVerticalGuide(
                                         guide = writingGuide,
@@ -856,11 +1006,15 @@ fun VerticalBodyEditor(
                             }
                             if (selectedRows != null) {
                                 Canvas(modifier = Modifier.fillMaxSize()) {
+                                    // 選取底色對齊格子的寬（1.3em）而不是整欄（1.72em）：
+                                    // 整欄塗滿會把欄與欄之間的空白也染色，看不出字被選了幾格。
+                                    val highlightWidth = fontSizePx * 1.3f
+                                    val highlightLeft = (size.width - highlightWidth) / 2f
                                     for (row in selectedRows) {
                                         drawRoundRect(
                                             color = selectionColor,
-                                            topLeft = Offset(0f, row * rowHeightPx),
-                                            size = Size(size.width, rowHeightPx),
+                                            topLeft = Offset(highlightLeft, row * rowHeightPx),
+                                            size = Size(highlightWidth, rowHeightPx),
                                             cornerRadius = CornerRadius(rowHeightPx * 0.25f)
                                         )
                                     }
@@ -953,23 +1107,126 @@ fun VerticalBodyEditor(
                 }
 
                 items(count = fillerCount) {
-                    // 空白欄也要吃同一段上內距（行號帶）：文字欄的格子畫在 padding 之內，
-                    // 空白欄若從頂端起畫，兩邊格子就差這 14dp，一欄一欄看過去就是
-                    // 「有字的地方和沒字的地方沒對齊」。
+                    // 左邊沒寫到的空白也要有線，否則整張紙會缺一角。
+                    // 參數與文字欄完全一致，接縫處才不會錯位。
                     Box(
                         modifier = Modifier
                             .width(cellWidth)
                             .fillMaxHeight()
-                            .padding(top = gutter)
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            drawVerticalGuide(
-                                guide = writingGuide,
-                                cellWidthPx = fontSizePx,
-                                rowHeightPx = if (guideAdvancePx > 0f) guideAdvancePx else cellHeightPx,
-                                baselinePx = if (guideBaselinePx > 0f) guideBaselinePx else baselinePx,
-                                color = variantColor
+                        if (writingGuide == WritingGuide.RULED) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                drawVerticalGuide(
+                                    guide = writingGuide,
+                                    cellWidthPx = fontSizePx,
+                                    rowHeightPx = 1f,
+                                    baselinePx = 0f,
+                                    color = variantColor
+                                )
+                            }
+                        }
+                        if (writingGuide == WritingGuide.GRID) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(top = textTop, bottom = bottomReserve)
+                            ) {
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    drawVerticalGuide(
+                                        guide = writingGuide,
+                                        cellWidthPx = fontSizePx,
+                                        rowHeightPx = if (guideAdvancePx > 0f) {
+                                            guideAdvancePx
+                                        } else {
+                                            cellHeightPx
+                                        },
+                                        baselinePx = if (guideBaselinePx > 0f) {
+                                            guideBaselinePx
+                                        } else {
+                                            baselinePx
+                                        },
+                                        color = variantColor
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 選取工具列。固定貼在頂部：直排的選取常常橫跨好幾欄，
+            // 跟著選取位置左右跑反而一直跳，找按鈕比找字還費力。
+            if (!value.selection.collapsed) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = Space.s100),
+                    shape = RoundedCornerShape(percent = 50),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        // 五個動作在窄螢幕會超出寬度；工具列自己可以橫向捲，
+                        // 不要讓最後一顆（貼上）被切在螢幕外。
+                        modifier = Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = Space.s100),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = {
+                            val body = value.text
+                            val from = value.selection.min.coerceIn(0, body.length)
+                            val to = value.selection.max.coerceIn(from, body.length)
+                            clipboard.setText(AnnotatedString(body.substring(from, to)))
+                            copiedHint = true
+                        }) {
+                            Text(if (copiedHint) strings.copied else strings.copySelection)
+                        }
+                        TextButton(onClick = {
+                            val raw = value.text.toString()
+                            val from = value.selection.min.coerceIn(0, raw.length)
+                            val to = value.selection.max.coerceIn(from, raw.length)
+                            // 先寫剪貼簿再刪；順序反過來就只剩空字串可複製。
+                            clipboard.setText(AnnotatedString(raw.substring(from, to)))
+                            onValueChange(
+                                value.copy(
+                                    text = raw.removeRange(from, to),
+                                    selection = TextRange(from)
+                                )
                             )
+                        }) {
+                            Text(strings.cutSelection)
+                        }
+                        TextButton(onClick = {
+                            val clip = clipboard.getText() ?: return@TextButton
+                            val raw = value.text.toString()
+                            val from = value.selection.min.coerceIn(0, raw.length)
+                            val to = value.selection.max.coerceIn(from, raw.length)
+                            val next = raw.removeRange(from, to).replaceRange(from, from, clip.text)
+                            onValueChange(
+                                value.copy(
+                                    text = next,
+                                    selection = TextRange(from + clip.length)
+                                )
+                            )
+                        }) {
+                            Text(strings.pasteSelection)
+                        }
+                        TextButton(onClick = {
+                            onValueChange(
+                                value.copy(selection = TextRange(0, value.text.length))
+                            )
+                        }) {
+                            Text(strings.selectAll)
+                        }
+                        TextButton(onClick = {
+                            // 取消＝把插入點收在選取末端，接著打字就從那裡繼續。
+                            onValueChange(
+                                value.copy(selection = TextRange(value.selection.max))
+                            )
+                        }) {
+                            Text(strings.cancel)
                         }
                     }
                 }
@@ -977,24 +1234,28 @@ fun VerticalBodyEditor(
         }
 
         // 真正接收 IME 的欄位：尺寸趨近 0、完全透明，只負責送字與選取狀態。
-        BasicTextField(
-            value = value,
-            // IME 也會給出「停在代理對中間」的游標位置（例如快速輸入）。
-            // 這裡先把它推到字格邊界，否則下一個字元會把 emoji 劈成兩個半字。
-            onValueChange = { next ->
-                val snapped = snapSelection(next)
-                // 游標一旦被輸入法搬走（打字、選字），點擊當下的「行尾」提示就過期了；
-                // 留著會讓之後刪字回到同一個 offset 時，游標莫名又跑回欄尾。
-                if (snapped.selection != value.selection) tailCaret = NO_TAIL_CARET
-                onValueChange(snapped)
-            },
-            textStyle = textStyle,
-            cursorBrush = SolidColor(Color.Transparent),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .size(1.dp)
-                .alpha(0f)
-                .focusRequester(focusRequester)
-        )
+        // 它的系統選取工具列要關掉：那個框只有 1dp，工具列不管選到哪一行都擠在角落，
+        // 和上面那條自訂工具列重複。直排的選取由這個檔案自己處理。
+        CompositionLocalProvider(LocalTextToolbar provides SilentTextToolbar) {
+            BasicTextField(
+                value = value,
+                // IME 也會給出「停在代理對中間」的游標位置（例如快速輸入）。
+                // 這裡先把它推到字格邊界，否則下一個字元會把 emoji 劈成兩個半字。
+                onValueChange = { next ->
+                    val snapped = snapSelection(next)
+                    // 游標一旦被輸入法搬走（打字、選字），點擊當下的「行尾」提示就過期了；
+                    // 留著會讓之後刪字回到同一個 offset 時，游標莫名又跑回欄尾。
+                    if (snapped.selection != value.selection) tailCaret = NO_TAIL_CARET
+                    onValueChange(snapped)
+                },
+                textStyle = textStyle,
+                cursorBrush = SolidColor(Color.Transparent),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(1.dp)
+                    .alpha(0f)
+                    .focusRequester(focusRequester)
+            )
+        }
     }
 }
