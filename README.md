@@ -8,7 +8,7 @@
 
 DocBox is a Markdown notebook and book reader for Android, written in Kotlin with Jetpack Compose and Material 3 Expressive.
 
-Notes are plain `.md` files inside a folder you pick through the system folder picker. The app keeps only metadata (title, tags, layout) in a local Room database. There is no account, no sync and no internet permission. Imported books stay in the app's own directory and are read in a built-in reader that shares the editor's typography, including vertical (top-to-bottom, right-to-left) layout.
+Notes are plain `.md` files inside a folder you pick through the system folder picker. The app keeps only metadata (title, tags, layout) in a local Room database. There is no account, no sync and no internet permission. Imported books stay in the app's own directory and are read in a built-in reader that shares the editor's typography, including vertical (top-to-bottom, right-to-left) layout. It also registers itself for *Open with*, so a document can come straight from another app.
 
 [简体中文说明](README.zh-CN.md)
 
@@ -21,6 +21,7 @@ Notes are plain `.md` files inside a folder you pick through the system folder p
 - **Auto-save that survives a crash.** A draft lands in Room about 400 ms after you stop typing, the `.md` file is written about a second later, and the app flushes again when it goes to the background. If the process is killed mid-edit, the draft is written back on the next launch.
 - **Horizontal or vertical.** Vertical mode reads top-to-bottom and right-to-left. Character advance (1.2em) and column pitch (1.72em) are set separately for vertical text, and a kinsoku pass keeps closing punctuation off the top of a column. When a long line wraps into the next column it stays the same line and is not numbered twice.
 - **Writing grid.** Grid or ruled paper behind the text, filling the whole writing area rather than stopping at the last line, and using the same cell pitch as the exported image, so the editor and the shared picture are the same paper. In vertical mode every column — written or still blank — shares one pitch, so the cells stay aligned straight across the page.
+- **Two layouts.** A masonry grid, or a single-column list. The list keeps a one-line excerpt and the date so a row is never just a title, and the source-format badge rides at the end of the title's last line in both.
 - **Undo and redo** across edits, with the caret scrolled back into view.
 
 ### Import
@@ -28,12 +29,15 @@ Notes are plain `.md` files inside a folder you pick through the system folder p
 - `.docx`, `.pdf`, `.epub`, `.mobi` / `.azw3`, `.fb2`, `.html`, `.markdown` and plain text. The format is detected from the extension first and the file header second, so a file without an extension still opens.
 - Each format has its own reader: Word's OOXML, PDFBox for the PDF text layer, OPF/spine for EPUB, and an HTML to Markdown converter that keeps headings, lists, links and code fences.
 - Imported notes carry a small badge with the source format. A note imported from a PDF keeps a link to the original file so the editor can reopen the real layout; older notes can be re-linked once, and a start-up check drops links whose permission is gone.
+- **Open with.** Word, PDF, HTML, Markdown, plain text and ebooks are declared in the manifest, both by MIME type and by extension, so DocBox shows up in another app's *Open with* menu. Ebooks go to the reader, everything else is imported as a note; a `.docx` is recognised as a document rather than a zipped book.
 
 ### Library and reader
 
 - EPUB, MOBI and FB2 books on a home shelf, with reading progress kept per book.
 - Native reader with horizontal or vertical layout, paged or scrolled, adjustable font size, line height and margins, and a Monet-derived paper tint.
 - Imported fonts and note backgrounds apply to the reader as well.
+- **Long-press to select.** Hold a book to enter selection; the top bar becomes a count with share and delete. Sharing sends the original file itself — no re-encoding and no temporary copy — and works for several books at once. Deleting always goes through selection, so cards keep the same height when you press them.
+- **Two layouts** here as well, and the same staggered entrance as the note lists.
 
 ### Share and export
 
@@ -56,6 +60,8 @@ Notes are plain `.md` files inside a folder you pick through the system folder p
 - Four languages: 繁體中文, 简体中文, English, Français. Switch at runtime, or leave it on *Follow system* so the app matches whatever the device is set to. Every screen is covered, including error messages.
 - On tablets and foldables the library switches to a side rail from 840dp wide: an 80dp navigation rail, a top bar that keeps only the search field, and a card grid that sizes its columns instead of stretching them.
 - One set of Material 3 Expressive transitions across screens, with content appearing in sequence.
+- Cards rise into place at 45 ms intervals with a spring; only the first screenful animates, so scrolling never replays it.
+- The launcher icon is part of the theme: six glyphs over the active palette, chosen in Settings. The splash screen uses that same icon and follows light/dark and the colour scheme, so it never flashes the wrong colour.
 
 ## Install
 

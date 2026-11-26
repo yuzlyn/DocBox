@@ -27,3 +27,8 @@ local.properties
 *.apk
 *.aab
 export-render/
+
+# 只給本機 AI 協作讀的規範文件，不進公開版控
+/AGENTS.md
+/CLAUDE.md
+/docs/CONVENTIONS.md
