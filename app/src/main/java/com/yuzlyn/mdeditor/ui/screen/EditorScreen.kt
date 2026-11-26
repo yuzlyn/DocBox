@@ -138,10 +138,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -202,8 +204,11 @@ import kotlin.math.floor
 import kotlin.math.max
 import com.yuzlyn.mdeditor.ui.component.CELL_PITCH_EM
 import com.yuzlyn.mdeditor.ui.component.HorizontalCellText
+import com.yuzlyn.mdeditor.ui.component.TaskCheckboxOverlay
+import com.yuzlyn.mdeditor.ui.component.TaskListTransformation
 import com.yuzlyn.mdeditor.ui.component.ROW_PITCH_EM
 import com.yuzlyn.mdeditor.ui.component.buildHCellLayout
+import com.yuzlyn.mdeditor.data.note.TaskLines
 
 private enum class FormatAction(
     val badge: String,
@@ -709,6 +714,13 @@ fun EditorScreen(
 
     var titleValue by remember(noteId) { mutableStateOf(TextFieldValue("")) }
     var bodyFieldValue by remember(noteId) { mutableStateOf(TextFieldValue()) }
+    // 待辦清單：只從文字推導，不另存狀態；勾選就是一次正常的文字編輯。
+    val taskLines = remember(bodyFieldValue.text) { TaskLines.parse(bodyFieldValue.text) }
+    val taskCheckedColor = editorColors.onBackgroundVariant.copy(alpha = 0.7f)
+    val taskTransformation = remember(taskLines, taskCheckedColor) {
+        TaskListTransformation(tasks = taskLines, checkedColor = taskCheckedColor)
+    }
+    var bodyLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val bodyScroll = rememberScrollState()
     var bodyViewportPx by remember { mutableStateOf(0) }
     // 接管「自動帶入畫面」的政策：手勢期間不動、大跳一律放棄（見 EditorBringIntoViewSpec）。
@@ -1418,8 +1430,7 @@ fun EditorScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = Space.s200),
                             horizontalArrangement = Arrangement.spacedBy(Space.s50),
-                            verticalArrangement = Arrangement.spacedBy(Space.s50),
-                            maxItemsInEachRow = 6
+                            verticalArrangement = Arrangement.spacedBy(Space.s50)
                         ) {
                             FormatAction.entries.forEach { action ->
                                 FormatChip(
@@ -1443,8 +1454,7 @@ fun EditorScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = Space.s200),
                             horizontalArrangement = Arrangement.spacedBy(Space.s50),
-                            verticalArrangement = Arrangement.spacedBy(Space.s50),
-                            maxItemsInEachRow = 6
+                            verticalArrangement = Arrangement.spacedBy(Space.s50)
                         ) {
                             MathSymbols.forEach { (snippet, glyph) ->
                                 FormatChip(
@@ -2087,7 +2097,13 @@ fun EditorScreen(
                                         } else {
                                             gridStyle
                                         },
-                                        visualTransformation = VisualTransformation.None,
+                                        // 作文格的字由 Canvas 自己畫，套 transformation 反而會多一層；
+                                        // 其餘情況把 `- [ ]` 藏起來、已勾選的行變灰加刪除線。
+                                        visualTransformation = if (gridActive) {
+                                            VisualTransformation.None
+                                        } else {
+                                            taskTransformation
+                                        },
                                         cursorBrush = if (gridActive) {
                                             SolidColor(Color.Transparent)
                                         } else {
@@ -2096,6 +2112,7 @@ fun EditorScreen(
                                         // 排版階段只記錄游標位置，不在這裡改滾動狀態：
                                         // 邊排版邊捲動，下一幀會拿過期的位置再算一次，越算越偏。
                                         onTextLayout = { layout ->
+                                            bodyLayout = layout
                                             val offset = bodyFieldValue.selection.start
                                                 .coerceIn(0, layout.layoutInput.text.length)
                                             val rect = layout.getCursorRect(offset)
@@ -2148,6 +2165,30 @@ fun EditorScreen(
                                                     }
                                                 }
                                                 innerTextField()
+                                                if (!gridActive) {
+                                                    TaskCheckboxOverlay(
+                                                        layout = bodyLayout ?: return@Box,
+                                                        tasks = taskLines,
+                                                        checkedColor = taskCheckedColor,
+                                                        onToggle = { task ->
+                                                            val next = TaskLines.toggle(
+                                                                bodyFieldValue.text,
+                                                                task
+                                                            )
+                                                            bodyFieldValue = bodyFieldValue.copy(
+                                                                text = next,
+                                                                selection = TextRange(
+                                                                    bodyFieldValue.selection.start
+                                                                        .coerceIn(0, next.length)
+                                                                ),
+                                                                composition = null
+                                                            )
+                                                            noteEdited(body = next)
+                                                            recordHistory()
+                                                        },
+                                                        modifier = Modifier.matchParentSize()
+                                                    )
+                                                }
                                             }
                                         }
                                     )
@@ -2411,26 +2452,38 @@ private val INK_DARK = Color(0xFF1C1B1F)
 /** 背景圖片上的淺墨：不用純白，純白在亮部會糊成一團。 */
 private val INK_LIGHT = Color(0xFFF7F5F2)
 
+/**
+ * 格式面板的一顆膠囊。
+ *
+ * 原本是固定 48dp 的圓，中文標籤（「一級標題」「螢光筆」）放不進 48dp 就被折成兩行、
+ * 衝出圓形。改成 **寬度跟著字走、最小 48dp** 的膠囊：高度維持 48dp 好點，
+ * 寬度由內容決定，標籤永遠單行——這也正是 M3 chip 的作法（label 單行、左右 16dp）。
+ */
 @Composable
 private fun FormatChip(label: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            .size(Space.s600)
+            .heightIn(min = Space.s600)
+            .widthIn(min = Space.s600)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-            // 波紋自繪並裁成圓形，按住時才不會出現方形遮罩。
+            // 波紋自繪並裁成圓角，按住時才不會出現方形遮罩。
             .pressRipple(interactionSource = interactionSource, shape = CircleShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
-            ),
+            )
+            .padding(horizontal = Space.s200),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            softWrap = false,
+            textAlign = TextAlign.Center
         )
     }
 }

@@ -49,6 +49,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
@@ -61,6 +62,9 @@ import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextRange
@@ -73,6 +77,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yuzlyn.mdeditor.data.note.TaskLine
+import com.yuzlyn.mdeditor.data.note.TaskLines
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.theme.Space
@@ -110,6 +116,63 @@ internal class VerticalColumns(
     /** 這一欄有幾個字格（＝要畫幾列）。 */
     fun rowsOf(index: Int): Int =
         (cellEnds.getOrElse(index) { 0 } - cellStarts.getOrElse(index) { 0 }).coerceAtLeast(0)
+
+    /**
+     * 這一欄帶待辦樣式的文字。
+     *
+     * 與 [columnText] 同樣是「一字一行」，只是把待辦語法（`- ` 與 `[ ]`）標成透明、
+     * 把已勾選那行標成灰字加刪除線。字數與換行都沒變，所以字格與分欄完全不受影響。
+     */
+    fun columnAnnotated(
+        text: String,
+        index: Int,
+        tasks: List<TaskLine>,
+        checkedInk: Color
+    ): AnnotatedString {
+        val from = cellStarts.getOrElse(index) { 0 }
+        val to = cellEnds.getOrElse(index) { 0 }
+        if (to <= from || tasks.isEmpty()) return AnnotatedString(columnText(text, index))
+        return buildAnnotatedString {
+            for (cell in from until to) {
+                if (cell > from) append('\n')
+                val start = cells.getOrElse(cell) { text.length }.coerceIn(0, text.length)
+                val end = cells.getOrElse(cell + 1) { text.length }.coerceIn(0, text.length)
+                val at = length
+                if (end > start) append(text, start, end)
+                val task = tasks.firstOrNull { start >= it.lineStart && start <= it.lineEnd }
+                if (task != null) {
+                    when {
+                        start < task.boxEnd -> addStyle(
+                            SpanStyle(color = Color.Transparent),
+                            at,
+                            length
+                        )
+                        task.checked -> addStyle(
+                            SpanStyle(
+                                color = checkedInk,
+                                textDecoration = TextDecoration.LineThrough
+                            ),
+                            at,
+                            length
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** 這一欄裡有方框就回（列、那一行待辦、是否已勾選），沒有回 null。 */
+    fun markerIn(index: Int, tasks: List<TaskLine>): Triple<Int, TaskLine, Boolean>? {
+        if (tasks.isEmpty()) return null
+        val from = cellStarts.getOrElse(index) { 0 }
+        val to = cellEnds.getOrElse(index) { 0 }
+        if (to <= from) return null
+        for (task in tasks) {
+            val cell = cells.indexOf(task.boxStart)
+            if (cell in from until to) return Triple(cell - from, task, task.checked)
+        }
+        return null
+    }
 
     /** 把第 [index] 欄的內容組成「每字一行」的字串；一個 emoji 就是一格。 */
     fun columnText(text: String, index: Int): String {
@@ -654,6 +717,9 @@ fun VerticalBodyEditor(
         // 字格邊界只跟文字有關，跟列數無關：記住它，鍵盤升降重排時就不必再跑一次
         // BreakIterator（emoji/組合字要逐字查 ICU，是分欄裡最貴的一步）。
         val graphemes = remember(text) { graphemeStarts(text) }
+        // 待辦清單：狀態只存在文字裡，這裡只推導位置與樣式。
+        val tasks = remember(text) { TaskLines.parse(text) }
+        val checkedInk = textColor.copy(alpha = 0.55f)
         val columns = remember(text, rows, graphemes) {
             buildVerticalColumns(text, rows, graphemes)
         }
@@ -889,6 +955,24 @@ fun VerticalBodyEditor(
                                         )
                                         // 記住「這次是點在行尾」：同一欄的欄尾與下一欄的欄首是
                                         // 同一個插入點，沒有這個提示就永遠只能看到行首的游標。
+                                        // 點在方框（`[ ]` 那三格）上就是勾選／取消，不是放游標。
+                                        val hit = TaskLines.parse(current.text)
+                                            .firstOrNull { tap.offset in it.boxStart..it.boxEnd }
+                                        if (hit != null) {
+                                            val next = TaskLines.toggle(current.text, hit)
+                                            onValueChange(
+                                                current.copy(
+                                                    text = next,
+                                                    selection = TextRange(
+                                                        current.selection.start
+                                                            .coerceIn(0, next.length)
+                                                    ),
+                                                    composition = null
+                                                )
+                                            )
+                                            focusTick++
+                                            return@awaitEachGesture
+                                        }
                                         tailCaret = if (tap.atTail) tap.offset else NO_TAIL_CARET
                                         onValueChange(
                                             current.copy(
@@ -1028,6 +1112,15 @@ fun VerticalBodyEditor(
                             val columnText = remember(columns, text, index) {
                                 columns.columnText(text, index)
                             }
+                            // 待辦語法（`- ` 與 `[ ]`）隱形，勾選那行變灰加刪除線；
+                            // 只加樣式、字數不變，分欄與字格位置完全不受影響。
+                            val columnAnnotated = remember(columns, text, index, tasks, checkedInk) {
+                                columns.columnAnnotated(text, index, tasks, checkedInk)
+                            }
+                            // 這一欄是否含有某個待辦的方框；有就記下列位置與狀態。
+                            val marker = remember(columns, index, tasks) {
+                                columns.markerIn(index, tasks)
+                            }
                             if (text.isEmpty()) {
                                 Text(
                                     text = placeholder.toCharArray().joinToString("\n"),
@@ -1038,7 +1131,7 @@ fun VerticalBodyEditor(
                                 )
                             } else {
                                 Text(
-                                    text = columnText,
+                                    text = columnAnnotated,
                                     style = columnStyle,
                                     softWrap = false,
                                     overflow = TextOverflow.Visible,
@@ -1059,6 +1152,48 @@ fun VerticalBodyEditor(
                                         if (guideAdvancePx <= 0f && a > 0f) guideAdvancePx = a
                                     }
                                 )
+                            }
+
+                            if (marker != null) {
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val box = minOf(rowHeightPx, cellWidthPx) * 0.62f
+                                    val top = marker.first * rowHeightPx + (rowHeightPx - box) / 2f
+                                    val left = (size.width - box) / 2f
+                                    val radius = CornerRadius(box * 0.22f)
+                                    val stroke = box * 0.12f
+                                    if (marker.third) {
+                                        drawRoundRect(
+                                            color = accentColor,
+                                            topLeft = Offset(left, top),
+                                            size = Size(box, box),
+                                            cornerRadius = radius
+                                        )
+                                    }
+                                    drawRoundRect(
+                                        color = if (marker.third) accentColor else variantColor,
+                                        topLeft = Offset(left + stroke / 2f, top + stroke / 2f),
+                                        size = Size(box - stroke, box - stroke),
+                                        cornerRadius = radius,
+                                        style = Stroke(stroke)
+                                    )
+                                    if (marker.third) {
+                                        val w = box
+                                        drawLine(
+                                            color = Color.White,
+                                            start = Offset(left + w * 0.27f, top + w * 0.52f),
+                                            end = Offset(left + w * 0.44f, top + w * 0.69f),
+                                            strokeWidth = stroke * 1.2f,
+                                            cap = StrokeCap.Round
+                                        )
+                                        drawLine(
+                                            color = Color.White,
+                                            start = Offset(left + w * 0.44f, top + w * 0.69f),
+                                            end = Offset(left + w * 0.75f, top + w * 0.32f),
+                                            strokeWidth = stroke * 1.2f,
+                                            cap = StrokeCap.Round
+                                        )
+                                    }
+                                }
                             }
 
                             if (caretRow >= 0) {
