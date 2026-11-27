@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object DatabaseMigrations {
-    const val DB_VERSION = 7
+    const val DB_VERSION = 8
 
     /** v2：新增 createdAt 欄位；既有資料以 lastModified 作為建立時間的近似值。 */
     private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -53,6 +53,15 @@ object DatabaseMigrations {
     }
 
     /** v6：新增來源檔 Uri；既有筆記沒有原始檔可回開，維持空字串。 */
+    private val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "ALTER TABLE ${NoteEntity.TABLE_NAME} " +
+                        "ADD COLUMN sourceUri TEXT NOT NULL DEFAULT ''"
+            )
+        }
+    }
+
     /** v7：新增每篇筆記自己的書寫輔助線；NULL 表示沿用設定裡的預設（既有筆記保持原樣）。 */
     private val MIGRATION_6_7 = object : Migration(6, 7) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -62,11 +71,22 @@ object DatabaseMigrations {
         }
     }
 
-    private val MIGRATION_5_6 = object : Migration(5, 6) {
+    /**
+     * v8：新增每篇筆記自己的底紙、字色與字體。
+     *
+     * 三欄都是 NULL＝沿用設定裡的預設，所以既有筆記的畫面完全不變；
+     * 只有使用者在某一篇的「樣式」面板動過，才寫進那一篇。
+     */
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
-                "ALTER TABLE ${NoteEntity.TABLE_NAME} " +
-                        "ADD COLUMN sourceUri TEXT NOT NULL DEFAULT ''"
+                "ALTER TABLE ${NoteEntity.TABLE_NAME} ADD COLUMN backgroundPreset TEXT"
+            )
+            db.execSQL(
+                "ALTER TABLE ${NoteEntity.TABLE_NAME} ADD COLUMN backgroundInk TEXT"
+            )
+            db.execSQL(
+                "ALTER TABLE ${NoteEntity.TABLE_NAME} ADD COLUMN noteFont TEXT"
             )
         }
     }
@@ -78,6 +98,7 @@ object DatabaseMigrations {
             MIGRATION_3_4,
             MIGRATION_4_5,
             MIGRATION_5_6,
-            MIGRATION_6_7
+            MIGRATION_6_7,
+            MIGRATION_7_8
         )
 }

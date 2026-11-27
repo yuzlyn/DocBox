@@ -333,6 +333,15 @@ class MainActivity : ComponentActivity() {
                         drawerOpen.value = false
                     }
 
+                    // 刪掉一個筆記本的全部筆記後，notesTag 會留在一個已經不存在分類上：
+                    // 列表從此空白，新建的筆記落在別的分類也看不到，看起來像「新增沒反應」。
+                    LaunchedEffect(notebookTags, notesTag) {
+                        val tag = notesTag ?: return@LaunchedEffect
+                        // 標籤清單空的時候代表筆記還沒讀回來（或剛好全部刪光），
+                        // 這時不能清：轉屏重建時 notesTag 會先於筆記清單恢復。
+                        if (notebookTags.isNotEmpty() && tag !in notebookTags) notesTag = null
+                    }
+
                     LaunchedEffect(settingsLoaded) {
                         if (settingsLoaded && homeTarget == null) {
                             // 直接取同一份已就緒設定，不再重讀 DataStore；否則畫面會先落在
@@ -566,7 +575,21 @@ class MainActivity : ComponentActivity() {
                                                         backStack.add(NoteEditor(note.id))
                                                     },
                                                     onCreateNewNote = { title, tag ->
-                                                        fileViewModel.createNewNote(title, tag)
+                                                        fileViewModel.createNewNote(title, tag) { id ->
+                                                            // 建好就直接打開：以前只把檔案寫進去，
+                                                            // 若當前正在看某個筆記本、新筆記又落在別的
+                                                            // 筆記本，畫面上完全沒有變化，看起來就是
+                                                            // 「按了新增沒反應」。
+                                                            if (id != null) {
+                                                                if (notesTag != null &&
+                                                                    notesTag != tag
+                                                                ) {
+                                                                    notesTag = null
+                                                                }
+                                                                homeSection = HomeSection.NOTES
+                                                                backStack.add(NoteEditor(id))
+                                                            }
+                                                        }
                                                     },
                                                     onFolderSelected = { uri ->
                                                         fileViewModel.onFolderSelected(uri)

@@ -47,6 +47,26 @@ interface NoteDao {
                 "SET writingGuide = :value WHERE id = :noteId"
     )
     suspend fun updateWritingGuide(noteId: String, value: String?)
+    /** 單篇的底紙；傳 null 表示恢復成「跟隨預設」。 */
+    @Query(
+        "UPDATE ${NoteEntity.TABLE_NAME} " +
+                "SET backgroundPreset = :value WHERE id = :noteId"
+    )
+    suspend fun updateBackgroundPreset(noteId: String, value: String?)
+
+    /** 單篇的字色（背景圖片上的文字顏色）；傳 null 表示跟隨預設。 */
+    @Query(
+        "UPDATE ${NoteEntity.TABLE_NAME} " +
+                "SET backgroundInk = :value WHERE id = :noteId"
+    )
+    suspend fun updateBackgroundInk(noteId: String, value: String?)
+
+    /** 單篇的字體；傳 null 表示跟隨預設。 */
+    @Query(
+        "UPDATE ${NoteEntity.TABLE_NAME} " +
+                "SET noteFont = :value WHERE id = :noteId"
+    )
+    suspend fun updateNoteFont(noteId: String, value: String?)
 
     /** 關聯（或更換）原始檔；同時把來源格式寫成 :format，卡片徽章才對得上。 */
     @Query(

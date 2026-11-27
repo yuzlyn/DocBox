@@ -28,6 +28,8 @@ import com.yuzlyn.mdeditor.data.profile.ProfilePreferences
 import com.yuzlyn.mdeditor.data.repository.NoteRepository
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
 import com.yuzlyn.mdeditor.data.settings.AppSettings
+import com.yuzlyn.mdeditor.data.settings.NoteBackground
+import com.yuzlyn.mdeditor.data.settings.NoteBackgroundInk
 import com.yuzlyn.mdeditor.data.settings.AppSettingsPreferences
 import com.yuzlyn.mdeditor.data.stats.StatKind
 import com.yuzlyn.mdeditor.data.stats.StatsSnapshot
@@ -275,19 +277,38 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun createNewNote(title: String, notebookTag: String = SafNoteDataSource.DEFAULT_TAG) {
+    /**
+     * 在目前選擇的資料夾裡新建一篇筆記。
+     *
+     * 以前失敗只寫 Log：資料夾授權被回收、provider 唯讀、或目錄建不出來時，
+     * 對話框照樣關掉，畫面上什麼都沒發生——使用者看到的就是「按了新增沒反應」。
+     * 現在失敗一律回到 [importError]（由首頁的 Snackbar 顯示），成功才回 [onCreated]，
+     * 由呼叫端決定要不要直接打開這一篇。
+     */
+    fun createNewNote(
+        title: String,
+        notebookTag: String = SafNoteDataSource.DEFAULT_TAG,
+        onCreated: (String?) -> Unit = {}
+    ) {
         viewModelScope.launch {
             val treeUri = settings.treeUriOnce()
             if (treeUri == null) {
                 Log.e(TAG, "[FileViewModel] 無法新建文件：尚未選擇 SAF 資料夾")
+                _importError.value = strings.msgNoFolder
+                onCreated(null)
                 return@launch
             }
-            val note = safDataSource.createNote(Uri.parse(treeUri), title, notebookTag)
-            if (note != null) {
-                repository.insert(note)
-            } else {
-                Log.e(TAG, "[FileViewModel] SAF 新建文件失敗")
+            val note = withContext(Dispatchers.IO) {
+                safDataSource.createNote(Uri.parse(treeUri), title, notebookTag)
             }
+            if (note == null) {
+                Log.e(TAG, "[FileViewModel] SAF 新建文件失敗")
+                _importError.value = strings.msgCannotCreateNote
+                onCreated(null)
+                return@launch
+            }
+            repository.insert(note)
+            onCreated(note.id)
         }
     }
 
@@ -533,6 +554,20 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
     /** 單篇的書寫輔助線；傳 null 表示恢復成跟隨預設設定。 */
     fun setNoteWritingGuide(noteId: String, guide: WritingGuide?) {
         viewModelScope.launch { repository.setWritingGuide(noteId, guide?.id) }
+    }
+    /** 單篇的底紙；傳 null 表示恢復成跟隨預設設定。 */
+    fun setNoteBackground(noteId: String, preset: NoteBackground?) {
+        viewModelScope.launch { repository.setBackgroundPreset(noteId, preset?.id) }
+    }
+
+    /** 單篇的字色；傳 null 表示恢復成跟隨預設設定。 */
+    fun setNoteBackgroundInk(noteId: String, ink: NoteBackgroundInk?) {
+        viewModelScope.launch { repository.setBackgroundInk(noteId, ink?.id) }
+    }
+
+    /** 單篇的字體；傳 null 表示恢復成跟隨預設設定。 */
+    fun setNoteFont(noteId: String, font: String?) {
+        viewModelScope.launch { repository.setNoteFont(noteId, font) }
     }
 
     fun deleteNote(noteId: String) {

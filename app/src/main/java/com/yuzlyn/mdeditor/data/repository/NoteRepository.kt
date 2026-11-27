@@ -55,6 +55,17 @@ class NoteRepository(private val database: AppDatabase) {
     /** 單篇的書寫輔助線；null 表示恢復成跟隨預設。 */
     suspend fun setWritingGuide(noteId: String, guide: String?) =
         dao.updateWritingGuide(noteId, guide)
+    /** 單篇的底紙；null 表示恢復成跟隨預設。 */
+    suspend fun setBackgroundPreset(noteId: String, preset: String?) =
+        dao.updateBackgroundPreset(noteId, preset)
+
+    /** 單篇的字色；null 表示恢復成跟隨預設。 */
+    suspend fun setBackgroundInk(noteId: String, ink: String?) =
+        dao.updateBackgroundInk(noteId, ink)
+
+    /** 單篇的字體；null 表示恢復成跟隨預設。 */
+    suspend fun setNoteFont(noteId: String, font: String?) =
+        dao.updateNoteFont(noteId, font)
 
     suspend fun insert(note: NoteModel) = dao.insert(note.toEntity())
 

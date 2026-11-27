@@ -12,6 +12,9 @@ fun NoteEntity.toDomain(): NoteModel = NoteModel(
     createdAt = createdAt,
     verticalLayout = verticalLayout,
     writingGuide = writingGuide,
+    backgroundPreset = backgroundPreset,
+    backgroundInk = backgroundInk,
+    noteFont = noteFont,
     sourceFormat = sourceFormat,
     sourceUri = sourceUri
 )
@@ -26,6 +29,9 @@ fun NoteModel.toEntity(): NoteEntity = NoteEntity(
     createdAt = createdAt,
     verticalLayout = verticalLayout,
     writingGuide = writingGuide,
+    backgroundPreset = backgroundPreset,
+    backgroundInk = backgroundInk,
+    noteFont = noteFont,
     sourceFormat = sourceFormat,
     sourceUri = sourceUri
 )

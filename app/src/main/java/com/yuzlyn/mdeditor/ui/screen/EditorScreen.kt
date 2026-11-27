@@ -589,29 +589,32 @@ fun EditorScreen(
     val appSettings by viewModel.appSettings.collectAsState()
     // 這篇筆記自己的排版優先；沒設定過（null）就沿用設定裡的預設排版。
     val verticalLayout = note?.verticalLayout ?: appSettings.verticalLayout
-    // 單篇沒設過就沿用設定裡的預設（null = 跟隨）。
+    // 樣式（底紙／字色／字體）和排版、輔助線一樣，都是「單篇優先、null 跟隨預設」。
+    // 以前這三項直接讀全域設定、也直接寫全域設定，所以在任一篇換底紙，
+    // 整本筆記會一起變色——這正是「改一篇、全部跟著改」的原因。
     val writingGuide = WritingGuide.fromId(note?.writingGuide ?: appSettings.writingGuide)
-    val bodyFontFamily = noteFontFamily(appSettings.noteFont)
+    val noteFontKey = note?.noteFont ?: appSettings.noteFont
+    val bodyFontFamily = noteFontFamily(noteFontKey)
     val backgroundBitmap = rememberAvatarBitmap(appSettings.noteBackground)
-    // 背景預設先在本機生效、設定值寫回後再交還，避免點選後要等 DataStore 落盤
+    // 單篇底紙先在本地生效、資料庫寫回後再交還，避免點選後要等 Room 落盤
     // 才看到變化（那段空窗就是「點了沒反應」的頓感）。
-    var pendingBackgroundPreset by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(appSettings.noteBackgroundPreset, pendingBackgroundPreset) {
+    var pendingBackgroundPreset by remember(noteId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(note?.backgroundPreset, pendingBackgroundPreset) {
         if (pendingBackgroundPreset != null &&
-            pendingBackgroundPreset == appSettings.noteBackgroundPreset
+            pendingBackgroundPreset == note?.backgroundPreset
         ) {
             pendingBackgroundPreset = null
         }
     }
-    val backgroundPreset = NoteBackground.fromId(
-        pendingBackgroundPreset ?: appSettings.noteBackgroundPreset
-    )
+    val storedPreset = note?.backgroundPreset ?: appSettings.noteBackgroundPreset
+    val backgroundPreset = NoteBackground.fromId(pendingBackgroundPreset ?: storedPreset)
     // 固定色系一律用預設自己的文字／頂欄／底欄色，系統切亮暗都不翻色；
     // 默認則完全交給主題（Monet 取色、深色模式）。背景圖片另外可以指定字的深淺。
+    val ink = NoteBackgroundInk.fromId(note?.backgroundInk ?: appSettings.noteBackgroundInk)
     val editorColors = rememberEditorColors(
         preset = backgroundPreset,
         hasImage = backgroundBitmap != null,
-        ink = appSettings.backgroundInk
+        ink = ink
     )
     val editorBackground = editorColors.background
 
@@ -752,8 +755,8 @@ fun EditorScreen(
     val exportManager = remember(context) { NoteExportManager(context) }
     // 匯出用的主題：跟編輯頁同一張紙——背景（含背景圖）、字色、輔助線色與字型。
     // 不傳的話 PDF／圖片永遠是白底黑字，使用者調的米紙或深色背景全部白做。
-    val exportTheme = remember(editorColors, appSettings.noteFont, backgroundBitmap) {
-        val fontFile = FontStore.fileOf(context, appSettings.noteFont)
+    val exportTheme = remember(editorColors, noteFontKey, backgroundBitmap) {
+        val fontFile = FontStore.fileOf(context, noteFontKey)
         ExportTheme(
             background = editorColors.background.toArgb(),
             text = editorColors.onBackground.toArgb(),
@@ -1287,11 +1290,9 @@ fun EditorScreen(
                                 FilterChip(
                                     selected = preset.id == backgroundPreset.id,
                                     onClick = {
-                                        // 先在本地套用，背景色這一幀就變；寫盤交給背景協程。
+                                        // 先在本地套用，背景色這一幀就變；寫入只改這一篇。
                                         pendingBackgroundPreset = preset.id
-                                        viewModel.updateAppSettings {
-                                            it.copy(noteBackgroundPreset = preset.id)
-                                        }
+                                        viewModel.setNoteBackground(noteId, preset)
                                         // 給這次重繪留兩幀，再播收合動畫，
                                         // 避免整屏重繪和動畫搶同一批幀。
                                         contentScope.launch {
@@ -1333,11 +1334,11 @@ fun EditorScreen(
                                     NoteBackgroundInk.LIGHT to strings.noteBackgroundInkLight
                                 ).forEach { (option, label) ->
                                     FilterChip(
-                                        selected = appSettings.backgroundInk == option,
+                                        selected = ink == option,
                                         onClick = {
-                                            viewModel.updateAppSettings {
-                                                it.copy(noteBackgroundInk = option.id)
-                                            }
+                                            // 字色也是單篇的：同一張背景圖，深色照片與淺色照片
+                                            // 需要的字色不同，共用一份等於每次都互相覆蓋。
+                                            viewModel.setNoteBackgroundInk(noteId, option)
                                             contentScope.launch {
                                                 withFrameNanos { }
                                                 withFrameNanos { }
@@ -1358,8 +1359,8 @@ fun EditorScreen(
                                 top = Space.s200
                             )
                         )
-                        // 字體清單來自「設定 → 字體」的字型庫；這裡改的是**預設值**，
-                        // 選完就寫回設定，下次開任何筆記都還是這個字。
+                        // 字體清單來自「設定 → 字體」的字型庫；這裡只改**這一篇**的字，
+                        // 其他筆記仍是它們自己的（沒設過就跟隨「設定 → 字體」的預設）。
                         val fontContext = LocalContext.current
                         val fontList = remember { FontStore.list(fontContext) }
                         FlowRow(
@@ -1370,22 +1371,18 @@ fun EditorScreen(
                             verticalArrangement = Arrangement.spacedBy(Space.s100)
                         ) {
                             FilterChip(
-                                selected = appSettings.noteFont == FontStore.SYSTEM ||
-                                    appSettings.noteFont.isBlank(),
+                                selected = noteFontKey == FontStore.SYSTEM ||
+                                    noteFontKey.isBlank(),
                                 onClick = {
-                                    viewModel.updateAppSettings {
-                                        it.copy(noteFont = FontStore.SYSTEM)
-                                    }
+                                    viewModel.setNoteFont(noteId, FontStore.SYSTEM)
                                 },
                                 label = { Text(strings.systemFont) }
                             )
                             fontList.forEach { font ->
                                 FilterChip(
-                                    selected = appSettings.noteFont == font.fileName,
+                                    selected = noteFontKey == font.fileName,
                                     onClick = {
-                                        viewModel.updateAppSettings {
-                                            it.copy(noteFont = font.fileName)
-                                        }
+                                        viewModel.setNoteFont(noteId, font.fileName)
                                     },
                                     label = {
                                         Text(

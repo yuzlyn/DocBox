@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -341,13 +342,18 @@ fun MainScreen(
     }
 
     BackHandler(enabled = fabMenuOpen) { fabMenuOpen = false }
-    // 換區段、進入多選、或還沒選資料夾時收起來，避免只剩一列懸空的按鈕。
-    LaunchedEffect(fabMenuOpen, section, selectedIds, hasFolderSelected) {
-        if (fabMenuOpen &&
-            (!hasFolderSelected || selectedIds.isNotEmpty() || section != HomeSection.NOTES)
-        ) {
-            fabMenuOpen = false
-        }
+
+    // 加號只在「已選資料夾、沒有多選、且停在全部筆記」時存在。
+    //
+    // 這個值同時決定「選單要不要收」：以前收合的判斷散在四個 key 上，只要有一個
+    // 狀態沒被觀察到（例如進入多選的那一刻剛好換區段），`fabMenuOpen` 就會留在 true，
+    // 而按鈕本身已經被隱藏；等它重新出現時，第一下點擊只是把這個看不見的 true 收成
+    // false——看起來就是「點了完全沒反應」。現在一律跟著可見性走。
+    val fabVisible = hasFolderSelected &&
+            selectedIds.isEmpty() &&
+            section == HomeSection.NOTES
+    LaunchedEffect(fabVisible) {
+        if (!fabVisible) fabMenuOpen = false
     }
     BackHandler(enabled = selectedIds.isNotEmpty()) {
         selectedIds = emptySet()
@@ -356,6 +362,9 @@ fun MainScreen(
     if (showNewNoteDialog) {
         NewNoteDialog(
             existingTags = notebookTags,
+            // 正在看某個筆記本時，新筆記預設就放進那個筆記本；
+            // 否則會落在「標籤清單第一個」，建立後畫面上看不到任何變化。
+            initialTag = selectedTag,
             onDismiss = { showNewNoteDialog = false },
             onConfirm = { title, tag ->
                 onCreateNewNote(title, tag)
@@ -435,9 +444,7 @@ fun MainScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
                 AnimatedVisibility(
-                    visible = hasFolderSelected &&
-                            selectedIds.isEmpty() &&
-                            section == HomeSection.NOTES,
+                    visible = fabVisible,
                     enter = fadeIn(fabEffects) +
                             scaleIn(animationSpec = fabScale) +
                             slideInVertically(animationSpec = fabSlide, initialOffsetY = { it / 3 }),
@@ -594,11 +601,10 @@ fun MainScreen(
                             horizontalArrangement = Arrangement.spacedBy(Space.s100),
                             verticalItemSpacing = Space.s100
                         ) {
-                            items(
-                                count = filteredTags.size,
-                                key = { filteredTags[it] }
-                            ) { index ->
-                                val tag = filteredTags[index]
+                            itemsIndexed(
+                                items = filteredTags,
+                                key = { _, tag -> tag }
+                            ) { index, tag ->
                                 Appear(
                                     index = index,
                                     enabled = notebookEntrance && index < APPEAR_ITEM_LIMIT,
@@ -677,11 +683,13 @@ fun MainScreen(
                             horizontalArrangement = Arrangement.spacedBy(Space.s100),
                             verticalItemSpacing = Space.s100
                         ) {
-                            items(
-                                count = sortedNotes.size,
-                                key = { sortedNotes[it].id }
-                            ) { index ->
-                                val note = sortedNotes[index]
+                            // 一定要用 itemsIndexed（直接把項目傳進來），不要用 items(count)
+                            // 再回頭 sortedNotes[index]：刪除時 animateItem 會讓消失的那張卡
+                            // 多活幾幀，這期間只要它重組一次，舊 index 就已經超出縮短後的清單。
+                            itemsIndexed(
+                                items = sortedNotes,
+                                key = { _, note -> note.id }
+                            ) { index, note ->
                                 Appear(
                                     index = index,
                                     enabled = notesEntrance && index < APPEAR_ITEM_LIMIT,
@@ -1406,12 +1414,23 @@ private fun NotebookCard(
 fun NewNoteDialog(
     existingTags: List<String>,
     onDismiss: () -> Unit,
-    onConfirm: (title: String, tag: String) -> Unit
+    onConfirm: (title: String, tag: String) -> Unit,
+    /** 目前正在看的筆記本；新筆記預設放這裡。null 表示「全部筆記」。 */
+    initialTag: String? = null
 ) {
     val strings = LocalAppStrings.current
     var title by remember { mutableStateOf("") }
+    // 把「目前這一本」排在最前面：清單可能因為刪除而少掉它，但它仍是最好的預設值。
+    val tags = remember(existingTags, initialTag) {
+        buildList {
+            if (!initialTag.isNullOrBlank()) add(initialTag)
+            existingTags.forEach { tag -> if (tag !in this) add(tag) }
+        }
+    }
     var selectedTag by remember {
-        mutableStateOf(if (existingTags.isNotEmpty()) existingTags.first() else strings.defaultNotebook)
+        mutableStateOf(
+            tags.firstOrNull() ?: strings.defaultNotebook
+        )
     }
     var showTagInput by remember { mutableStateOf(false) }
     var customTag by remember { mutableStateOf("") }
@@ -1436,21 +1455,25 @@ fun NewNoteDialog(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                ButtonGroup(
-                    overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
-                    horizontalArrangement = Arrangement.spacedBy(Space.s100)
-                ) {
-                    existingTags.take(3).forEach { tag ->
-                        toggleableItem(
-                            checked = selectedTag == tag && !showTagInput,
-                            label = tag,
-                            onCheckedChange = { checked ->
-                                if (checked) {
-                                    selectedTag = tag
-                                    showTagInput = false
+                // 沒有任何既有筆記本時（例如剛把筆記刪光）不要放一個空群組：
+                // 空 ButtonGroup 量出來是 0 高，對話框會只剩標題與輸入框。
+                if (tags.isNotEmpty()) {
+                    ButtonGroup(
+                        overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
+                        horizontalArrangement = Arrangement.spacedBy(Space.s100)
+                    ) {
+                        tags.take(3).forEach { tag ->
+                            toggleableItem(
+                                checked = selectedTag == tag && !showTagInput,
+                                label = tag,
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        selectedTag = tag
+                                        showTagInput = false
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
                 if (showTagInput) {

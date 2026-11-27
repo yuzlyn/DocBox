@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.rememberScrollState
@@ -604,11 +605,12 @@ fun LibraryScreen(
                         horizontalArrangement = Arrangement.spacedBy(Space.s100),
                         verticalItemSpacing = Space.s100
                     ) {
-                        items(
-                            count = visibleBooks.size,
-                            key = { visibleBooks[it].id }
-                        ) { index ->
-                            val book = visibleBooks[index]
+                        // 與筆記頁同一條規則：刪除時消失的那張卡還會多活幾幀，
+                        // 用 itemsIndexed 直接把書傳進來，不要回頭索引已經縮短的清單。
+                        itemsIndexed(
+                            items = visibleBooks,
+                            key = { _, book -> book.id }
+                        ) { index, book ->
                             Appear(
                                 index = index,
                                 enabled = booksEntrance && index < APPEAR_ITEM_LIMIT,

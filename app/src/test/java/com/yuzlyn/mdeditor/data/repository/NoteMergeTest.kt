@@ -36,6 +36,9 @@ class NoteMergeTest {
         content: String,
         lastModified: Long = 1_000L,
         verticalLayout: Boolean? = null,
+        backgroundPreset: String? = null,
+        backgroundInk: String? = null,
+        noteFont: String? = null,
         sourceFormat: String = "",
         sourceUri: String = ""
     ) = NoteEntity(
@@ -47,6 +50,9 @@ class NoteMergeTest {
         lastModified = lastModified,
         createdAt = 42L,
         verticalLayout = verticalLayout,
+        backgroundPreset = backgroundPreset,
+        backgroundInk = backgroundInk,
+        noteFont = noteFont,
         sourceFormat = sourceFormat,
         sourceUri = sourceUri
     )
@@ -206,6 +212,32 @@ class NoteMergeTest {
 
         assertEquals("使用者改的標題", result.single().title)
         assertEquals("一樣的內容", result.single().content)
+    }
+
+    /**
+     * 單篇樣式（底紙／字色／字體）只存在資料庫裡，掃描時一定要從舊資料接回來。
+     * 漏接的話，每次啟動或換資料夾，使用者為某一篇挑的樣式就會悄悄回到全域預設。
+     */
+    @Test
+    fun `掃描不會洗掉單篇的樣式設定`() {
+        val result = NoteMerge.merge(
+            scanned = listOf(scannedNote(content = "檔案裡的內容", lastModified = 9_000L)),
+            saved = mapOf(
+                NOTE_ID to savedNote(
+                    content = "資料庫內容",
+                    lastModified = 1_000L,
+                    backgroundPreset = "sepia",
+                    backgroundInk = "dark",
+                    noteFont = "kai.ttf"
+                )
+            ),
+            drafts = emptyMap()
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("sepia", result.first().backgroundPreset)
+        assertEquals("dark", result.first().backgroundInk)
+        assertEquals("kai.ttf", result.first().noteFont)
     }
 
     private companion object {

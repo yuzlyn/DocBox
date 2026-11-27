@@ -69,6 +69,9 @@ internal object NoteMerge {
                     createdAt = previous?.createdAt ?: note.createdAt,
                     verticalLayout = previous?.verticalLayout,
                     writingGuide = previous?.writingGuide,
+                    backgroundPreset = previous?.backgroundPreset,
+                    backgroundInk = previous?.backgroundInk,
+                    noteFont = previous?.noteFont,
                     sourceFormat = previous?.sourceFormat ?: "",
                     sourceUri = previous?.sourceUri ?: ""
                 )
@@ -80,6 +83,9 @@ internal object NoteMerge {
                     createdAt = previous?.createdAt ?: note.createdAt,
                     verticalLayout = previous?.verticalLayout,
                     writingGuide = previous?.writingGuide,
+                    backgroundPreset = previous?.backgroundPreset,
+                    backgroundInk = previous?.backgroundInk,
+                    noteFont = previous?.noteFont,
                     sourceFormat = previous?.sourceFormat ?: "",
                     sourceUri = previous?.sourceUri ?: ""
                 )
