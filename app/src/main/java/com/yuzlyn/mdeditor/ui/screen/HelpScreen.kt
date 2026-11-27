@@ -88,86 +88,64 @@ fun HelpScreen(
                     .padding(horizontal = Space.s200, vertical = Space.s200),
                 verticalArrangement = Arrangement.spacedBy(Space.s400)
             ) {
-            Column(verticalArrangement = Arrangement.spacedBy(Space.s100)) {
+                // 說明頁是一篇長文，不是功能清單：標題只留應用名，其餘一段一段讀。
+                // 段落間距 16dp、區塊之間 32dp，眼睛才會把這幾段讀成同一篇文章。
                 Text(
                     text = strings.appName,
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = doc.tagline,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = doc.intro,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Space.s100)
-                )
-            }
 
-            doc.sections.forEachIndexed { index, section ->
-                Appear(index = index + 1) {
-                    Column(verticalArrangement = Arrangement.spacedBy(Space.s150)) {
-                        Text(
-                            text = section.heading,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        section.paragraph?.let { paragraph ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Space.s200)
+                ) {
+                    doc.paragraphs.forEachIndexed { index, paragraph ->
+                        Appear(index = index) {
                             Text(
                                 text = paragraph,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        section.bullets.forEach { bullet ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(Space.s150)) {
-                                Text(
-                                    text = "•",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = bullet,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
                     }
                 }
-            }
 
-            SegmentedListGroup(
-                title = doc.linksTitle,
-                rows = listOf(
-                    SettingsRow(
-                        icon = Icons.Default.Link,
-                        title = doc.repoLabel,
-                        subtitle = PROJECT_REPO_URL,
-                        onClick = { uriHandler.openUri(PROJECT_REPO_URL) }
-                    ),
-                    SettingsRow(
-                        icon = Icons.Default.Person,
-                        title = doc.githubLabel,
-                        subtitle = strings.authorRole,
-                        onClick = onOpenAuthor
+                SegmentedListGroup(
+                    title = doc.linksTitle,
+                    rows = listOf(
+                        SettingsRow(
+                            icon = Icons.Default.Link,
+                            title = doc.repoLabel,
+                            subtitle = PROJECT_REPO_URL,
+                            onClick = { uriHandler.openUri(PROJECT_REPO_URL) }
+                        ),
+                        SettingsRow(
+                            icon = Icons.Default.Person,
+                            title = doc.githubLabel,
+                            subtitle = strings.authorRole,
+                            onClick = onOpenAuthor
+                        )
                     )
                 )
-            )
 
-            Text(
-                text = listOf(strings.appName, versionName)
-                    .filter { it.isNotBlank() }
-                    .joinToString(" "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+                // 授權署名：CC BY 4.0 要求保留姓名與 DOI，所以即使這一頁不再列功能，
+                // 這一行也不能跟著刪。壓成 labelSmall，讀起來是註腳而不是正文。
+                Text(
+                    text = doc.credit,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = listOf(strings.appName, versionName)
+                        .filter { it.isNotBlank() }
+                        .joinToString(" "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
