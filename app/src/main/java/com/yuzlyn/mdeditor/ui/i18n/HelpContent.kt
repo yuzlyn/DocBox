@@ -20,6 +20,14 @@ data class HelpDoc(
      * JGW 甲骨骨架，必須保留姓名與 DOI。字級壓到 labelSmall，讓它讀起來是註腳。
      */
     val credit: String,
+    /**
+     * 更新檢查的邊界說明。
+     *
+     * 「資料不出設備」原本是整個產品最硬的一條承諾；加入「檢查更新」之後多了唯一一條
+     * 對外連線，就必須在說明頁寫清楚：什麼時候連、連去哪裡、送出去什麼（什麼都沒送）。
+     * 這不是免責聲明，是承諾被劃開之後的新邊界——寫不出來的地方，就是不該做的地方。
+     */
+    val updateNotice: String,
     val linksTitle: String,
     val repoLabel: String,
     val githubLabel: String
@@ -32,6 +40,10 @@ data class HelpDoc(
  * 分散在各個畫面裡的話，下次改信箱就會漏掉一頁。
  */
 const val PROJECT_REPO_URL = "https://github.com/yuzlyn/DocBox"
+
+/** 版本頁：檢查更新失敗時的備援入口，也是下載 APK 的說明頁。 */
+const val PROJECT_RELEASES_URL = "$PROJECT_REPO_URL/releases/latest"
+
 const val AUTHOR_GITHUB_URL = "https://github.com/yuzlyn"
 const val AUTHOR_GITHUB_USER = "yuzlyn"
 const val AUTHOR_EMAIL = "cebrayu@qq.com"
@@ -53,6 +65,7 @@ private val ZhTwHelp = HelpDoc(
         "於本軟體，我本想開發「小學」：從千字文學音韻，依平仄組詞、對對子，再造句寫詩。無奈我不識韻律，故刪除此功能。"
     ),
     credit = "桌面圖示的字形取自 hanzi-glyphs-svg（漢典摹本 CC0；JGW 甲骨骨架 1,203 條 CC BY 4.0，Li Qing-sheng、Bian Yu-lin，DOI 10.5281/zenodo.22467946）。",
+    updateNotice = "更新檢查只在你按下按鈕時連上 GitHub 的公開介面，詢問最新版本號；不會上傳筆記、檔名或任何本機資料。除此之外，這個程式不連網。",
     linksTitle = "專案連結",
     repoLabel = "專案倉庫",
     githubLabel = "yuzlyn"
@@ -67,6 +80,7 @@ private val ZhCnHelp = HelpDoc(
         "于本软件，我本想开发「小学」：从千字文学音韵，依平仄组词、对对子，再造句写诗。无奈我不识韵律，故删除此功能。"
     ),
     credit = "桌面图标字形取自 hanzi-glyphs-svg（汉典摹本 CC0；JGW 甲骨骨架 1,203 条 CC BY 4.0，Li Qing-sheng、Bian Yu-lin，DOI 10.5281/zenodo.22467946）。",
+    updateNotice = "更新检查只在你按下按钮时连上 GitHub 的公开接口，询问最新版本号；不会上传笔记、文件名或任何本机数据。除此之外，这个程序不联网。",
     linksTitle = "项目链接",
     repoLabel = "项目仓库",
     githubLabel = "yuzlyn"
@@ -81,6 +95,7 @@ private val EnUsHelp = HelpDoc(
         "In this software I originally planned to develop a “Xiaoxue” (classical philology) feature: starting from the Thousand Character Classic to learn phonology, forming words by tonal patterns, composing couplets, and then writing sentences and poetry. Unfortunately I myself do not understand prosody, so I removed the feature."
     ),
     credit = "Launcher icon glyphs from hanzi-glyphs-svg (Handian tracings CC0; 1,203 JGW oracle skeletons CC BY 4.0 by Li Qing-sheng and Bian Yu-lin, DOI 10.5281/zenodo.22467946).",
+    updateNotice = "The update check contacts GitHub's public API only when you press the button, asking for the latest version number. It never uploads notes, file names, or any other local data. The app makes no other network connections.",
     linksTitle = "Project links",
     repoLabel = "Repository",
     githubLabel = "yuzlyn"
@@ -95,6 +110,7 @@ private val FrFrHelp = HelpDoc(
         "Dans ce logiciel, j’avais d’abord voulu développer une fonction « Xiaoxue » (philologie classique) : partir du Classique des Mille Caractères pour apprendre la phonologie, former des mots selon les tons, composer des couplets, puis écrire des phrases et des poèmes. Malheureusement, je ne connais pas moi-même la prosodie, aussi ai-je supprimé cette fonction."
     ),
     credit = "Glyphes des icônes de lancement : hanzi-glyphs-svg (tracés Handian CC0 ; 1 203 squelettes oracle JGW CC BY 4.0, Li Qing-sheng et Bian Yu-lin, DOI 10.5281/zenodo.22467946).",
+    updateNotice = "La vérification des mises à jour ne contacte l’API publique de GitHub que lorsque vous appuyez sur le bouton, pour demander le dernier numéro de version. Elle ne transmet ni vos notes, ni vos noms de fichiers, ni aucune autre donnée locale. L’application n’établit aucune autre connexion réseau.",
     linksTitle = "Liens du projet",
     repoLabel = "Dépôt",
     githubLabel = "yuzlyn"

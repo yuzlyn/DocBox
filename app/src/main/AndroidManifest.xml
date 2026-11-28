@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- 唯一的聯網用途：使用者按下「檢查更新」時，向 GitHub 的公開介面問一次最新版本號
+         （GET https://api.github.com/repos/yuzlyn/DocBox/releases/latest）。
+         請求不帶任何本機資料。除此之外不得再發任何網路請求——這是對
+         「資料不出設備」承諾劃出的新邊界，理由寫在 docs/ROADMAP.md 與說明頁的更新說明。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- 讓 PickVisualMedia 在 Android 11+ 也能探測到系統相片選擇器（含 Play 服務回移版）；
          沒有這段會退回 ACTION_OPEN_DOCUMENT，功能仍可用但體驗較差。 -->
     <queries>

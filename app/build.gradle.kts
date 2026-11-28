@@ -1,7 +1,24 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+}
+
+// 版本號只從根目錄 version.properties 讀。以前 versionCode/versionName 寫死在這裡，
+// 每次改版都得記著動 build 檔；多一個 -test.N 之後更不可能靠人腦同步。
+val versionProps = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}
+val appVersionCode = versionProps.getProperty("versionCode")?.trim()?.toIntOrNull()
+    ?: error("version.properties 缺少合法的 versionCode")
+val appVersionName = versionProps.getProperty("versionName")?.trim().orEmpty()
+
+// 「檢查更新」用 AppVersion 解析這個字串；解析不了就永遠回「版本資訊無法辨識」。
+// 在設定階段擋下來，比等使用者回報「檢查更新壞了」便宜。
+require(Regex("""^\d+(\.\d+){1,3}(-[0-9A-Za-z.\-]+)?$""").matches(appVersionName)) {
+    "versionName \"$appVersionName\" 無法被 data/update/AppVersion.kt 解析"
 }
 
 android {
@@ -18,8 +35,8 @@ android {
         applicationId = "com.yuzlyn.mdeditor"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.1.2"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

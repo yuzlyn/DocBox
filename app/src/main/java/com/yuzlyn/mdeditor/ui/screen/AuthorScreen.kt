@@ -49,6 +49,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.yuzlyn.mdeditor.data.update.InstalledApp
 import com.yuzlyn.mdeditor.ui.component.Appear
 import com.yuzlyn.mdeditor.ui.i18n.AUTHOR_EMAIL
 import com.yuzlyn.mdeditor.ui.i18n.AUTHOR_GITHUB_URL
@@ -76,11 +77,7 @@ fun AuthorScreen(
     val strings = LocalAppStrings.current
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
-    val versionName = remember(context) {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull().orEmpty()
-    }
+    val versionName = remember(context) { InstalledApp.versionName(context) }
     // 頭像檔名由使用者決定：把 author_avatar.png 丟進 drawable-nodpi 就生效，
     // 所以只能反射查 id；只查一次，不隨配置變更重算，也不會拿到過期值。
     @SuppressLint("DiscouragedApi", "LocalContextResourcesRead")

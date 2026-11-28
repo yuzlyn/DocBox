@@ -23,18 +23,22 @@ import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +52,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.book.BookLibrary
 import com.yuzlyn.mdeditor.data.settings.AppLanguage
@@ -56,15 +61,21 @@ import com.yuzlyn.mdeditor.data.settings.DarkModeOption
 import com.yuzlyn.mdeditor.data.settings.HomeTarget
 import com.yuzlyn.mdeditor.data.settings.ThemeMode
 import com.yuzlyn.mdeditor.data.fonts.FontStore
+import com.yuzlyn.mdeditor.data.update.InstalledApp
+import com.yuzlyn.mdeditor.data.update.RemoteRelease
+import com.yuzlyn.mdeditor.data.update.UpdateChecker
+import com.yuzlyn.mdeditor.data.update.UpdateResult
 import com.yuzlyn.mdeditor.ui.component.Appear
 import com.yuzlyn.mdeditor.ui.component.ConstrainedContent
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
+import com.yuzlyn.mdeditor.ui.i18n.PROJECT_RELEASES_URL
 import com.yuzlyn.mdeditor.ui.i18n.label
+import com.yuzlyn.mdeditor.ui.i18n.updateError
 import com.yuzlyn.mdeditor.ui.theme.Space
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
@@ -88,10 +99,11 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     var scanning by remember { mutableStateOf(false) }
-    // 掃描進行中把右邊的箭頭換成轉圈：雲端資料夾可能要等好幾秒，
+    // 掃描進行中把右邊的箭頭換成載入指示：雲端資料夾可能要等好幾秒，
     // 沒有回饋的話使用者會以為按了沒反應，然後再按一次。
+    // 用 M3E 的 LoadingIndicator 而不是轉圈圈：同一頁的「忙碌」只該有一種長相。
     val scanTrailing: (@Composable () -> Unit)? = if (scanning) {
-        { CircularProgressIndicator(modifier = Modifier.size(Space.s250), strokeWidth = 2.dp) }
+        { LoadingIndicator(modifier = Modifier.size(Space.s300)) }
     } else {
         null
     }
@@ -111,6 +123,58 @@ fun SettingsScreen(
                 )
             )
         }
+    }
+
+    // ── 檢查更新 ────────────────────────────────────────────────────────
+    //
+    // 這是整個程式唯一會連網的地方，而且只在使用者按下這一列時發一次 GET。
+    // 刻意不在啟動時自動檢查：使用者打開筆記本不該順便告訴 GitHub「我來了」，
+    // 什麼時候連出去必須由他決定。這也是 INTERNET 權限留在清單裡的理由邊界。
+    val uriHandler = LocalUriHandler.current
+    val versionName = remember(context) { InstalledApp.versionName(context) }
+    var checkingUpdate by remember { mutableStateOf(false) }
+    // 只留一個「待確認的新版本」狀態，而不是「有沒有更新 + 版本號」兩個變數：
+    // 兩個變數就有機會對不上（對話框關了、旗標還亮著），下次進設定頁又彈一次。
+    var pendingRelease by remember { mutableStateOf<RemoteRelease?>(null) }
+
+    fun checkForUpdates() {
+        if (checkingUpdate) return
+        scope.launch {
+            checkingUpdate = true
+            // finally 而不是 runCatching：離開頁面時協程會被取消，runCatching 會把
+            // CancellationException 一起吞掉，取消就變成了「靜默繼續跑」。
+            val result = try {
+                UpdateChecker().check(versionName)
+            } finally {
+                checkingUpdate = false
+            }
+            when (result) {
+                is UpdateResult.Available -> pendingRelease = result.release
+                UpdateResult.UpToDate -> snackbar.showSnackbar(strings.updateUpToDate)
+                is UpdateResult.Failed -> {
+                    // 失敗時附一個「開啟版本頁面」的動作：GitHub 的 API 在部分網路
+                    // 環境下連不上，但網頁版通常還能開；與其讓使用者卡在一句錯誤訊息，
+                    // 不如把唯一可行的替代路徑直接放在他手邊。
+                    val response = snackbar.showSnackbar(
+                        message = strings.updateError(result.error),
+                        actionLabel = strings.openReleasesPage,
+                        withDismissAction = true,
+                        // 有 actionLabel 時預設是 Indefinite：一條連線錯誤不該一直掛在
+                        // 螢幕下緣擋住內容。四秒足夠看見，錯過了也還能再按一次。
+                        duration = SnackbarDuration.Short
+                    )
+                    if (response == SnackbarResult.ActionPerformed) {
+                        runCatching { uriHandler.openUri(PROJECT_RELEASES_URL) }
+                    }
+                }
+            }
+        }
+    }
+
+    val updateTrailing: (@Composable () -> Unit)? = if (checkingUpdate) {
+        { LoadingIndicator(modifier = Modifier.size(Space.s300)) }
+    } else {
+        null
     }
 
     val themeSubtitle = when (settings.themeMode) {
@@ -371,8 +435,65 @@ SegmentedListGroup(
                     )
                 )
             }
+
+            // 關於：只有一列，卻刻意獨立成一組。它不改變任何行為，只是把
+            // 「你現在裝的是哪一版」和「有沒有一版更新的」放在同一個位置；
+            // 混進上面的語言或主題分組，會讓人以為點下去會改介面。
+            Appear(index = 7) {
+SegmentedListGroup(
+                    title = strings.about,
+                    rows = listOf(
+                        SettingsRow(
+                            icon = Icons.Default.SystemUpdate,
+                            title = strings.checkUpdate,
+                            subtitle = if (checkingUpdate) {
+                                strings.checkingUpdate
+                            } else {
+                                strings.currentVersion(versionName.ifBlank { "—" })
+                            },
+                            showChevron = false,
+                            // 與書庫掃描同一套回饋：整列仍是唯一入口，忙碌時右邊換成
+                            // LoadingIndicator，而不是另外長出一顆按鈕。
+                            trailing = updateTrailing,
+                            onClick = { checkForUpdates() }
+                        )
+                    )
+                )
+            }
             }
         }
     }
 
+    // 新版本提示。用 AlertDialog 而不是自製圖層：更新是「打斷一次、要你決定」的
+    // 訊息，不需要容器變形帶來的戲劇性；兩個按鈕（下載／稍後）也剛好對上它的語義。
+    pendingRelease?.let { release ->
+        AlertDialog(
+            onDismissRequest = { pendingRelease = null },
+            title = { Text(strings.updateAvailableTitle) },
+            text = {
+                // 大字号（200%）下这一句会撑高对话框；可滚动才不会被裁掉半行。
+                Text(
+                    text = strings.updateAvailableBody(release.version.toString()),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingRelease = null
+                        // 沒有 APK 附件時退回版本頁：寧可讓使用者自己找，
+                        // 也不要給一個不存在的下載連結。
+                        runCatching { uriHandler.openUri(release.apkUrl ?: release.pageUrl) }
+                    }
+                ) {
+                    Text(strings.downloadUpdate)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRelease = null }) {
+                    Text(strings.later)
+                }
+            }
+        )
+    }
 }

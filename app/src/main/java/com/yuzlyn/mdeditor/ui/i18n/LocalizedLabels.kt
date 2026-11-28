@@ -9,6 +9,7 @@ import com.yuzlyn.mdeditor.data.importer.ImportError
 import com.yuzlyn.mdeditor.data.settings.NoteBackground
 import com.yuzlyn.mdeditor.data.settings.NoteBackgroundInk
 import com.yuzlyn.mdeditor.data.settings.WritingGuide
+import com.yuzlyn.mdeditor.data.update.UpdateError
 
 /**
  * 資料層的列舉各自帶一個寫死的中文 `label`，那是給日誌與除錯看的。
@@ -106,6 +107,20 @@ fun AppStrings.imageInsertError(
     ImageInsertError.CREATE_FAILED -> imageErrCreate
     ImageInsertError.COPY_FAILED -> imageErrCopy
 }.withDetail(detail)
+
+/**
+ * 檢查更新失敗時給使用者看的一句話。
+ *
+ * 刻意不接技術細節：這裡的失敗幾乎都是「網路到不了 GitHub」或「被限流」，
+ * 把 `UnknownHostException` 或 HTTP 狀態碼攤在畫面上，對使用者的下一步沒有幫助，
+ * 只會讓設定頁看起來像壞了。
+ */
+fun AppStrings.updateError(error: UpdateError): String = when (error) {
+    UpdateError.NETWORK -> updateErrNetwork
+    UpdateError.RATE_LIMITED -> updateErrRateLimited
+    UpdateError.NO_RELEASE -> updateErrNoRelease
+    UpdateError.MALFORMED -> updateErrMalformed
+}
 
 /**
  * 把開書丟出來的例外變成一句話。

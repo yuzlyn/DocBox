@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.yuzlyn.mdeditor.data.settings.AppLanguage
+import com.yuzlyn.mdeditor.data.update.InstalledApp
 import com.yuzlyn.mdeditor.ui.component.ConstrainedContent
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.i18n.PROJECT_REPO_URL
@@ -52,11 +53,7 @@ fun HelpScreen(
     val doc = remember(language) { language.helpDoc() }
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
-    val versionName = remember(context) {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull().orEmpty()
-    }
+    val versionName = remember(context) { InstalledApp.versionName(context) }
 
     Scaffold(
         topBar = {
@@ -133,6 +130,14 @@ fun HelpScreen(
                 // 這一行也不能跟著刪。壓成 labelSmall，讀起來是註腳而不是正文。
                 Text(
                     text = doc.credit,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // 更新檢查的邊界說明：與版本號排在同一段小字裡，
+                // 讓「這個程式會連到哪裡」和「你現在裝的是哪一版」讀起來是同一件事。
+                Text(
+                    text = doc.updateNotice,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

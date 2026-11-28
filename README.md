@@ -136,7 +136,7 @@ tools/                           # Helper scripts (test book generation)
 
 - Note bodies are `.md` files in the folder you picked. Removing the app does not remove them.
 - Titles, tags, layout, drafts, statistics and imported books live in the app's private directory.
-- The app declares no internet permission, so nothing leaves the device.
+- The app's only network request is the update check you trigger yourself: it asks GitHub for the latest release tag and sends no local data.
 
 ## License
 

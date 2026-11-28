@@ -475,6 +475,27 @@ class AppStrings {
     lateinit var fontSizeLarge: String
     lateinit var fontSizeHuge: String
 
+    /**
+     * 設定頁的「關於」與檢查更新。
+     *
+     * 四個錯誤句各自對應 [com.yuzlyn.mdeditor.data.update.UpdateError] 的一檔：
+     * 使用者的下一步不同（檢查連線 / 等一會兒 / 不必重試），合成一句會把
+     * 「重試沒用」和「重試就好」混在一起。
+     */
+    lateinit var checkUpdate: String
+    lateinit var checkingUpdate: String
+    lateinit var currentVersion: (String) -> String
+    lateinit var updateUpToDate: String
+    lateinit var updateAvailableTitle: String
+    lateinit var updateAvailableBody: (String) -> String
+    lateinit var downloadUpdate: String
+    lateinit var later: String
+    lateinit var openReleasesPage: String
+    lateinit var updateErrNetwork: String
+    lateinit var updateErrRateLimited: String
+    lateinit var updateErrNoRelease: String
+    lateinit var updateErrMalformed: String
+
 }
 
 val ZhTwStrings = AppStrings().apply {
@@ -857,6 +878,21 @@ val ZhTwStrings = AppStrings().apply {
     fontSizeStandard = "標準"
     fontSizeLarge = "大"
     fontSizeHuge = "超大"
+    checkUpdate = "檢查更新"
+    checkingUpdate = "正在檢查更新…"
+    currentVersion = { "目前版本 $it" }
+    updateUpToDate = "已是最新版本"
+    updateAvailableTitle = "有新版本可用"
+    updateAvailableBody = {
+        "最新版本為 $it。下載後以系統安裝程式覆蓋安裝即可，筆記不會受到影響。"
+    }
+    downloadUpdate = "下載"
+    later = "稍後"
+    openReleasesPage = "開啟版本頁面"
+    updateErrNetwork = "連不上 GitHub，請確認網路後再試"
+    updateErrRateLimited = "查詢次數過多，請稍後再試"
+    updateErrNoRelease = "找不到可用的版本資訊"
+    updateErrMalformed = "版本資訊格式無法辨識"
 
 }
 
@@ -1240,6 +1276,21 @@ val ZhCnStrings = AppStrings().apply {
     fontSizeStandard = "标准"
     fontSizeLarge = "大"
     fontSizeHuge = "超大"
+    checkUpdate = "检查更新"
+    checkingUpdate = "正在检查更新…"
+    currentVersion = { "当前版本 $it" }
+    updateUpToDate = "已是最新版本"
+    updateAvailableTitle = "有新版本可用"
+    updateAvailableBody = {
+        "最新版本为 $it。下载后用系统安装程序覆盖安装即可，笔记不会受到影响。"
+    }
+    downloadUpdate = "下载"
+    later = "稍后"
+    openReleasesPage = "打开版本页面"
+    updateErrNetwork = "无法连接 GitHub，请检查网络后重试"
+    updateErrRateLimited = "查询次数过多，请稍后重试"
+    updateErrNoRelease = "找不到可用的版本信息"
+    updateErrMalformed = "版本信息格式无法识别"
 
 }
 
@@ -1623,6 +1674,21 @@ val EnUsStrings = AppStrings().apply {
     fontSizeStandard = "Standard"
     fontSizeLarge = "Large"
     fontSizeHuge = "Extra large"
+    checkUpdate = "Check for updates"
+    checkingUpdate = "Checking for updates…"
+    currentVersion = { "Current version $it" }
+    updateUpToDate = "You're on the latest version"
+    updateAvailableTitle = "A new version is available"
+    updateAvailableBody = {
+        "Version $it is available. Download it and install it over the current app — your notes are not affected."
+    }
+    downloadUpdate = "Download"
+    later = "Later"
+    openReleasesPage = "Open releases page"
+    updateErrNetwork = "Couldn't reach GitHub. Check your connection and try again."
+    updateErrRateLimited = "Too many requests. Please try again later."
+    updateErrNoRelease = "No release information found"
+    updateErrMalformed = "The version information couldn't be read"
 
 }
 
@@ -2006,6 +2072,21 @@ val FrFrStrings = AppStrings().apply {
     fontSizeStandard = "Standard"
     fontSizeLarge = "Grande"
     fontSizeHuge = "Très grande"
+    checkUpdate = "Vérifier les mises à jour"
+    checkingUpdate = "Vérification des mises à jour…"
+    currentVersion = { "Version actuelle $it" }
+    updateUpToDate = "Vous avez la dernière version"
+    updateAvailableTitle = "Une nouvelle version est disponible"
+    updateAvailableBody = {
+        "La version $it est disponible. Téléchargez-la et installez-la par-dessus l’application actuelle : vos notes ne sont pas affectées."
+    }
+    downloadUpdate = "Télécharger"
+    later = "Plus tard"
+    openReleasesPage = "Ouvrir la page des versions"
+    updateErrNetwork = "Impossible de joindre GitHub. Vérifiez votre connexion et réessayez."
+    updateErrRateLimited = "Trop de requêtes. Réessayez plus tard."
+    updateErrNoRelease = "Aucune information de version trouvée"
+    updateErrMalformed = "Les informations de version sont illisibles"
 
 }
 
