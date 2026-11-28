@@ -1,0 +1,9 @@
+
+
+# ─── 第一行：<类型>: <做了什么>（50 字内）
+# 空一行，再写「为什么改」：根因、动机、被否掉的方案。别复述代码。
+# 修 bug 必须写清「怎么复现 + 根因」，否则三个月后你也不知道在修什么。
+# 类型：feat  fix  docs  refactor  test  chore  release
+# 动过界面文案 → ui/i18n/HelpContent.kt 四语同步
+# 动过 UI / 导航 / 设置 → 对照 docs/CONVENTIONS.md 第 13 节自查
+# ───
