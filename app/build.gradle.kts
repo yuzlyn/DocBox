@@ -37,6 +37,14 @@ android {
             )
         }
     }
+    sourceSets {
+        getByName("androidTest") {
+            // 測試樣本只留一份：androidTest 直接吃 test 的資源目錄。
+            // 兩份副本以前靠手工同步，實測三支樣本 md5 一直相同，等於白養一份。
+            // 路徑前綴必須保留 books/，ReaderRenderingTest 是按 assets.open("books/…") 讀的。
+            assets.srcDir("src/test/resources")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

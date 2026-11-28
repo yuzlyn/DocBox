@@ -105,18 +105,27 @@ body { background: #ffffff url(../Images/pic.png) no-repeat; }
 <body><p>這頁是非線性內容，不該出現在閱讀序列裡。</p></body></html>"""
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    def entry(name, compress):
+        """固定时间戳的 zip 条目。"""
+        # writestr 收字符串时会把 date_time 设成 time.localtime()，
+        # 于是每跑一次脚本，样本二进制就变一次，工作区永远是脏的。
+        info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+        info.compress_type = compress
+        return info
+
     with zipfile.ZipFile(path, "w") as z:
         # mimetype 必须排第一且不压缩。
-        z.writestr(zipfile.ZipInfo("mimetype"), "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", container, compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("OEBPS/content.opf", opf, compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("OEBPS/nav.xhtml", nav, compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("OEBPS/Styles/main.css", css, compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("OEBPS/Text/ch1.xhtml", CHAPTER1, compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("OEBPS/Text/ch2.xhtml", ch2, compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("OEBPS/Text/ch3.xhtml", ch3, compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("OEBPS/Text/notes.xhtml", notes, compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("OEBPS/Images/pic.png", png(), compress_type=zipfile.ZIP_STORED)
+        z.writestr(entry("mimetype", zipfile.ZIP_STORED), "application/epub+zip")
+        z.writestr(entry("META-INF/container.xml", zipfile.ZIP_DEFLATED), container)
+        z.writestr(entry("OEBPS/content.opf", zipfile.ZIP_DEFLATED), opf)
+        z.writestr(entry("OEBPS/nav.xhtml", zipfile.ZIP_DEFLATED), nav)
+        z.writestr(entry("OEBPS/Styles/main.css", zipfile.ZIP_DEFLATED), css)
+        z.writestr(entry("OEBPS/Text/ch1.xhtml", zipfile.ZIP_DEFLATED), CHAPTER1)
+        z.writestr(entry("OEBPS/Text/ch2.xhtml", zipfile.ZIP_DEFLATED), ch2)
+        z.writestr(entry("OEBPS/Text/ch3.xhtml", zipfile.ZIP_DEFLATED), ch3)
+        z.writestr(entry("OEBPS/Text/notes.xhtml", zipfile.ZIP_DEFLATED), notes)
+        z.writestr(entry("OEBPS/Images/pic.png", zipfile.ZIP_STORED), png())
 
 
 # ---------------------------------------------------------------- PalmDB
