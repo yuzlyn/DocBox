@@ -30,7 +30,11 @@ android {
             // 沿用同一張：已經裝過舊版的人可以直接覆蓋升級，換簽章就得先卸載。
             // 要改用私人 keystore 的話，這裡換成自己的 signingConfig 即可。
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
+            // 開 R8：release 從 36 MB 降到十幾 MB，同時把類名、方法名改掉，
+            // 反編譯後看不到可讀的結構。風險集中在反射點與 WebView 橋接，
+            // keep 規則見 proguard-rules.pro；真機冒煙由使用者驗收。
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

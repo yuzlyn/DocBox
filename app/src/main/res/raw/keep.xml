@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    給 shrinkResources 看的白名單。
+
+    author_avatar 是使用者自己放進 drawable-nodpi 的作者頭像，程式用
+    resources.getIdentifier("author_avatar", "drawable", …) 動態探測，
+    沒有 R.drawable.xxx 這種靜態引用。R8 看不出它被用到，就會在打包時
+    把它當成沒人用的資源刪掉——作者頁的頭像於是消失，而且不會有任何報錯。
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/author_avatar" />
