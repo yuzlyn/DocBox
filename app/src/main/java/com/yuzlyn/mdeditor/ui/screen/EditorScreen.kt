@@ -104,6 +104,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -725,16 +727,16 @@ fun EditorScreen(
     }
     var bodyLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val bodyScroll = rememberScrollState()
-    var bodyViewportPx by remember { mutableStateOf(0) }
+    var bodyViewportPx by remember { mutableIntStateOf(0) }
     // 接管「自動帶入畫面」的政策：手勢期間不動、大跳一律放棄（見 EditorBringIntoViewSpec）。
     val bringIntoViewSpec = remember { EditorBringIntoViewSpec() }
     // 游標矩形（相對輸入框）＋輸入框在滾動內容裡的起點－目前滾動值，
     // 才是游標真正落在螢幕上的位置。三者缺一，換算就會差一整個視口。
     var caretRect by remember { mutableStateOf(Rect.Zero) }
-    var bodyTextTopPx by remember { mutableStateOf(0f) }
+    var bodyTextTopPx by remember { mutableFloatStateOf(0f) }
     // 上一次看到的內容與視口高度：只有這兩者變了才需要校正游標位置。
     var lastBodyText by remember(noteId) { mutableStateOf("") }
-    var lastViewportPx by remember(noteId) { mutableStateOf(0) }
+    var lastViewportPx by remember(noteId) { mutableIntStateOf(0) }
     val contentScope = rememberCoroutineScope()
     val density = LocalDensity.current
     // 底部工具列（40dp 按鈕 + 上下 12dp）佔用的高度；內文與游標可視範圍往上讓這麼多。
@@ -1945,8 +1947,8 @@ fun EditorScreen(
                         )
                         // 輔助線要貼著字畫，所以拿「實際排版的基線」當基準：
                         // 行框（lineHeight）比字高出一截，用行框底畫線，字就會浮在格子偏上。
-                        var guideBaselinePx by remember { mutableStateOf(0f) }
-                        var guideAdvancePx by remember { mutableStateOf(0f) }
+                        var guideBaselinePx by remember { mutableFloatStateOf(0f) }
+                        var guideAdvancePx by remember { mutableFloatStateOf(0f) }
                         // 格子的邊長不能用「字號」：M3 的 bodyLarge 帶 letterSpacing = 0.5sp，
                         // 每個字的實際步進是「字號 + 字距」，用字號鋪線一排下來就會愈來愈偏。
                         // 量「国国」兩個字，取第二個字的起點，就是一步的寬度。
@@ -1968,7 +1970,7 @@ fun EditorScreen(
                         // 量到的「格寬」只是初值：真正的字寬要等實際排版才看得到
                         // （字型替換、字距換算都可能差 1%）。差的那一點會逐字累積，
                         // 一整行二十字就是四分之一格，看起來就是「越寫越歪」。
-                        var guideCellPx by remember { mutableStateOf(probeCellPx) }
+                        var guideCellPx by remember { mutableFloatStateOf(probeCellPx) }
                         LaunchedEffect(probeCellPx) { guideCellPx = probeCellPx }
                         // 格線不畫「等距線」，而是從實際排版算出來（見 buildGridLines）：
                         // 等距線的週期是估的，估錯 1% 就會越寫越歪；取每個字的真實位置則不會。

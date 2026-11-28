@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.core.net.toUri
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
@@ -366,7 +367,7 @@ class MainActivity : ComponentActivity() {
                             onBook = { bookUri, name ->
                                 navScope.launch {
                                     val entry = runCatching {
-                                        bookLibrary.import(Uri.parse(bookUri), name)
+                                        bookLibrary.import(bookUri.toUri(), name)
                                     }.getOrNull()
                                     backStack.add(
                                         Reader(
@@ -617,7 +618,7 @@ class MainActivity : ComponentActivity() {
                                                                 navScope.launch {
                                                                     val entry = runCatching {
                                                                         bookLibrary.import(
-                                                                            android.net.Uri.parse(bookUri),
+                                                                            bookUri.toUri(),
                                                                             name
                                                                         )
                                                                     }.getOrNull()

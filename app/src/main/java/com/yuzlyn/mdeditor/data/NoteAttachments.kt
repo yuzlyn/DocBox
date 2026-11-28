@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.util.Log
+import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -59,7 +60,7 @@ class NoteAttachments(context: Context) {
         }
 
     private fun attachImageInternal(noteUriString: String, source: Uri): ImageInsertResult {
-        val noteUri = Uri.parse(noteUriString)
+        val noteUri = noteUriString.toUri()
         val noteDocId = runCatching { DocumentsContract.getDocumentId(noteUri) }.getOrNull()
             ?: return ImageInsertResult.Failure(ImageInsertError.NOT_WRITABLE)
 

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.yuzlyn.mdeditor.data.ImageInsertError
@@ -213,7 +214,7 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
             val persistedUri = settings.treeUriOnce()
             if (persistedUri != null) {
                 Log.d(TAG, "[FileViewModel] 檢測到持久化目錄 Uri，自動匯入")
-                importFilesFromSelectedFolder(Uri.parse(persistedUri))
+                importFilesFromSelectedFolder(persistedUri.toUri())
             } else {
                 Log.d(TAG, "[FileViewModel] 無持久化目錄，等待用戶選擇資料夾")
                 // 還是要把上次的草稿補回資料庫，使用者才看得到自己打過的字。
@@ -299,7 +300,7 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             val note = withContext(Dispatchers.IO) {
-                safDataSource.createNote(Uri.parse(treeUri), title, notebookTag)
+                safDataSource.createNote(treeUri.toUri(), title, notebookTag)
             }
             if (note == null) {
                 Log.e(TAG, "[FileViewModel] SAF 新建文件失敗")
@@ -416,7 +417,7 @@ class FileViewModel(application: Application) : AndroidViewModel(application) {
             ?: return ImportNoteResult.Failure(strings.msgNoFolder)
         val note = withContext(Dispatchers.IO) {
             safDataSource.createNote(
-                Uri.parse(treeUri),
+                treeUri.toUri(),
                 titleFor(displayName, content),
                 SafNoteDataSource.DEFAULT_TAG
             )

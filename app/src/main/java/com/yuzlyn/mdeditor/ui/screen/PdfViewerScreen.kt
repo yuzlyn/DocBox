@@ -53,6 +53,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import com.yuzlyn.mdeditor.ui.theme.Space
 import com.yuzlyn.mdeditor.ui.i18n.LocalAppStrings
 import com.yuzlyn.mdeditor.ui.viewmodel.FileViewModel
@@ -81,10 +82,10 @@ fun PdfViewerScreen(
 ) {
     val strings = LocalAppStrings.current
     val context = LocalContext.current
-    val uri = remember(uriString) { Uri.parse(uriString) }
+    val uri = remember(uriString) { uriString.toUri() }
 
     var renderer by remember { mutableStateOf<PdfRenderer?>(null) }
-    var pageCount by remember { mutableStateOf(0) }
+    var pageCount by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var title by remember { mutableStateOf("PDF") }
     var importing by remember { mutableStateOf(false) }

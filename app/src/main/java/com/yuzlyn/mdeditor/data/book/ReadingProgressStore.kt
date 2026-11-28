@@ -1,6 +1,7 @@
 package com.yuzlyn.mdeditor.data.book
 
 import android.content.Context
+import androidx.core.content.edit
 import org.json.JSONObject
 import java.security.MessageDigest
 
@@ -58,29 +59,29 @@ class ReadingProgressStore(context: Context) {
             .put("anchor", progress.anchor.orEmpty())
             .put("fraction", progress.fraction.toDouble())
             .put("updatedAt", progress.updatedAt)
-        prefs.edit().putString(key, json.toString()).apply()
+        prefs.edit { putString(key, json.toString()) }
         prune()
     }
 
     fun clear(key: String) {
-        prefs.edit().remove(key).apply()
+        prefs.edit { remove(key) }
     }
 
     /** 只留最近 [MAX_ENTRIES] 本，免得讀過幾百本就開始長灰。 */
     private fun prune() {
         val all = prefs.all
         if (all.size <= MAX_ENTRIES) return
-        val editor = prefs.edit()
-        all.entries
-            .mapNotNull { entry ->
-                runCatching {
-                    entry.key to JSONObject(entry.value as String).optLong("updatedAt", 0L)
-                }.getOrNull()
-            }
-            .sortedByDescending { it.second }
-            .drop(MAX_ENTRIES)
-            .forEach { editor.remove(it.first) }
-        editor.apply()
+        prefs.edit {
+            all.entries
+                .mapNotNull { entry ->
+                    runCatching {
+                        entry.key to JSONObject(entry.value as String).optLong("updatedAt", 0L)
+                    }.getOrNull()
+                }
+                .sortedByDescending { it.second }
+                .drop(MAX_ENTRIES)
+                .forEach { remove(it.first) }
+        }
     }
 
     private companion object {

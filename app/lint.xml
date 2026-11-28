@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+        这里只关「明知不改」的检查，每一条都写清为什么。
+        AGENTS.md 的门槛是 error 必须为 0、warning 不设限；
+        关掉一条不是为了凑数字，而是因为它对本项目不成立。
+    -->
+
+    <!--
+        TrustAllX509TrustManager（3 条）命中在 org.bouncycastle:bcpkix 的 jar 里，
+        不是本專案代码，改不了。而且本应用没有 INTERNET 权限（manifest 里只有
+        READ_EXTERNAL_STORAGE，maxSdk 32），根本不会有出网流量，这个告警的前提不成立。
+    -->
+    <issue id="TrustAllX509TrustManager" severity="ignore" />
+
+    <!--
+        author_avatar 是使用者自己放进 drawable-nodpi 的作者头像，
+        代码用 resources.getIdentifier("author_avatar", "drawable", …) 动态探测，
+        lint 追不到这层字符串引用。删掉它，作者页头像就没了。
+    -->
+    <issue id="UnusedResources">
+        <ignore path="**/author_avatar.png" />
+    </issue>
+</lint>

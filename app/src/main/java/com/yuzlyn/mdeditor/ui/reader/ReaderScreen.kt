@@ -1,6 +1,5 @@
 package com.yuzlyn.mdeditor.ui.reader
 
-import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -83,6 +82,7 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -118,6 +118,7 @@ import com.yuzlyn.mdeditor.data.fonts.FontStore
 import com.yuzlyn.mdeditor.ui.component.pressRipple
 import com.yuzlyn.mdeditor.ui.theme.Space
 import com.yuzlyn.mdeditor.ui.theme.noteFontFamily
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -228,7 +229,7 @@ fun ReaderScreen(
         error = null
         runCatching {
             withContext(Dispatchers.IO) {
-                BookOpener.open(context, Uri.parse(uriString), displayName)
+                BookOpener.open(context, uriString.toUri(), displayName)
             }
         }.onSuccess { opened ->
             book = opened
@@ -1249,7 +1250,9 @@ private fun ReaderLayoutSheet(
         }
         ReaderStepper(
             label = strings.readerLineHeight,
-            value = String.format("%.1f", settings.readingLineHeight),
+            // 行高是技術數值（1.5 倍），用小數點而非逗號：Locale.ROOT 是常數，
+            // 不會像 Locale.getDefault() 那樣在 Composable 裡取到不可觀測的值。
+            value = String.format(Locale.ROOT, "%.1f", settings.readingLineHeight),
             canDecrease = settings.readerLineHeightTenths > AppSettingsPreferences.MIN_LINE_HEIGHT_TENTHS,
             canIncrease = settings.readerLineHeightTenths < AppSettingsPreferences.MAX_LINE_HEIGHT_TENTHS,
             onDecrease = {

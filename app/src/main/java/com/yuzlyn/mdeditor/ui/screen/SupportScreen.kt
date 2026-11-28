@@ -25,7 +25,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,7 +53,7 @@ fun SupportScreen(onBack: () -> Unit) {
     val strings = LocalAppStrings.current
     val codes = remember(strings) { supportCodes(strings) }
     // -1 = 沒有放大任何一張。
-    var zoomed by remember { mutableStateOf(-1) }
+    var zoomed by remember { mutableIntStateOf(-1) }
 
     Scaffold(
         topBar = {

@@ -211,6 +211,9 @@ private fun argb(color: Long): Int = (0xFF000000L or (color and 0xFFFFFF)).toInt
 /** 字級變了之後等 WebView 把版面重排完再重新計算頁數。 */
 private const val REPAGINATE_DELAY_MS = 90L
 
+// 只載入 App 內建的 assets 與書檔，沒有 INTERNET 權限、沒開 allowFileAccess，
+// JS 僅用來跑內附的 markdown-it / MathJax。這條 lint 假設的「遠端內容」前提不成立。
+@SuppressLint("SetJavaScriptEnabled")
 private fun WebView.configureForReading() {
     val settings = this.settings
     settings.javaScriptEnabled = true

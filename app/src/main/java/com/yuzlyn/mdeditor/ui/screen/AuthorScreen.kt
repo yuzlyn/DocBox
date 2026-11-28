@@ -1,5 +1,6 @@
 package com.yuzlyn.mdeditor.ui.screen
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -80,6 +81,9 @@ fun AuthorScreen(
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull().orEmpty()
     }
+    // 頭像檔名由使用者決定：把 author_avatar.png 丟進 drawable-nodpi 就生效，
+    // 所以只能反射查 id；只查一次，不隨配置變更重算，也不會拿到過期值。
+    @SuppressLint("DiscouragedApi", "LocalContextResourcesRead")
     val avatarId = remember(context) {
         context.resources.getIdentifier("author_avatar", "drawable", context.packageName)
     }

@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -61,7 +63,7 @@ data class ShelfFolder(
      */
     val lastScanAt: Long = 0L
 ) {
-    val uri: Uri get() = Uri.parse(treeUri)
+    val uri: Uri get() = treeUri.toUri()
 }
 
 /**
@@ -338,7 +340,7 @@ class BookLibrary(context: Context) {
     private fun writeIgnored(names: Set<String>) {
         val array = JSONArray()
         names.forEach { array.put(it) }
-        prefs.edit().putString(KEY_IGNORED, array.toString()).apply()
+        prefs.edit { putString(KEY_IGNORED, array.toString()) }
     }
 
     /** 記一次「剛剛打開過」。 */
@@ -385,7 +387,7 @@ class BookLibrary(context: Context) {
                     .put("folderId", book.folderId ?: "")
             )
         }
-        prefs.edit().putString(KEY_BOOKS, array.toString()).apply()
+        prefs.edit { putString(KEY_BOOKS, array.toString()) }
     }
 
     private fun writeFolders(list: List<ShelfFolder>) {
@@ -400,7 +402,7 @@ class BookLibrary(context: Context) {
                     .put("lastScanAt", folder.lastScanAt)
             )
         }
-        prefs.edit().putString(KEY_FOLDERS, array.toString()).apply()
+        prefs.edit { putString(KEY_FOLDERS, array.toString()) }
     }
 
     private fun persistPermission(uri: Uri) {

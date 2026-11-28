@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
 import android.webkit.WebResourceResponse
+import androidx.core.net.toUri
 import com.yuzlyn.mdeditor.data.NoteAttachments
 import com.yuzlyn.mdeditor.data.imageMimeForName
 
@@ -25,7 +26,7 @@ internal class AttachmentWebLoader(context: Context, noteUriString: String?) {
 
     private val imagesChildrenUri: Uri? = noteUriString?.let { raw ->
         runCatching {
-            val noteUri = Uri.parse(raw)
+            val noteUri = raw.toUri()
             val documentId = DocumentsContract.getDocumentId(noteUri)
             val parentId = if ('/' in documentId) {
                 documentId.substringBeforeLast('/')

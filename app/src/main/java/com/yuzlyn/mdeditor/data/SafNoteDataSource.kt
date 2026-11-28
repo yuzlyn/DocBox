@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -134,7 +135,7 @@ class SafNoteDataSource(context: Context) {
     suspend fun writeContent(uriString: String, content: String): Boolean =
         withContext(Dispatchers.IO) {
             writeMutex.withLock {
-                val uri = Uri.parse(uriString)
+                val uri = uriString.toUri()
                 val bytes = content.toByteArray(Charsets.UTF_8)
                 WRITE_MODES.any { mode -> writeWithMode(uri, bytes, mode) }
             }
@@ -177,7 +178,7 @@ class SafNoteDataSource(context: Context) {
 
     suspend fun deleteDocument(uriString: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            DocumentsContract.deleteDocument(appContext.contentResolver, Uri.parse(uriString))
+            DocumentsContract.deleteDocument(appContext.contentResolver, uriString.toUri())
         } catch (e: Exception) {
             Log.e(TAG, "[SafNoteDataSource] SAF 刪除失敗: ${e.message}", e)
             false

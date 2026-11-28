@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -652,7 +653,7 @@ fun VerticalBodyEditor(
     val keyboardController = LocalSoftwareKeyboardController.current
     // 焦點一直留在隱藏的輸入欄位上，收起鍵盤後再 requestFocus() 不會重新叫出 IME，
     // 所以每次點擊都遞增這個計數，由 LaunchedEffect 重新聚焦並明確把鍵盤叫出來。
-    var focusTick by remember { mutableStateOf(0) }
+    var focusTick by remember { mutableIntStateOf(0) }
     val caretColor = accentColor
     val selectionColor = accentColor.copy(alpha = 0.22f)
     val textColor = if (textStyle.color != Color.Unspecified) textStyle.color
@@ -727,8 +728,8 @@ fun VerticalBodyEditor(
         // 格子的節拍（行距、基線）由「真的渲染出文字的那一欄」量出來之後**全欄共用**。
         // 原本每欄自己量、空白欄用全域量測值，兩套數字一有出入，
         // 有字的欄和沒字的欄就會畫出兩種節奏——往下幾十列就明顯錯開。
-        var guideAdvancePx by remember { mutableStateOf(0f) }
-        var guideBaselinePx by remember { mutableStateOf(0f) }
+        var guideAdvancePx by remember { mutableFloatStateOf(0f) }
+        var guideBaselinePx by remember { mutableFloatStateOf(0f) }
         // 字型或字級換了就重新量：沿用舊節拍，格子會跟新的字完全對不上。
         LaunchedEffect(cellHeightPx, baselinePx) {
             guideAdvancePx = 0f
@@ -744,7 +745,7 @@ fun VerticalBodyEditor(
         // （上一欄的欄尾＝下一欄的欄首），只有點擊的那一刻知道使用者指的是哪一側。
         // 這裡只在 offset 仍對得上那一欄結尾時才成立：打字、刪字、重新分欄之後
         // 提示自動過期，游標不會卡在舊位置。
-        var tailCaret by remember { mutableStateOf(NO_TAIL_CARET) }
+        var tailCaret by remember { mutableIntStateOf(NO_TAIL_CARET) }
         val tailColumn = tailCaretColumn(columns, caretIndex, tailCaret)
 
         // 重排前先記下「游標那一欄在哪個螢幕位置」，重排後才滑得回同一個位置。
